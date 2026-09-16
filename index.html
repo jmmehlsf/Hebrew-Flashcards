@@ -163,16 +163,15 @@
 </div>
 
 <script>
-// ====== PASTE YOUR FIREBASE CONFIG HERE ======
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyChe-jqMqtme1qTdsQKtr4SRffzCXUDgl0",
+  authDomain: "h-flash-cards.firebaseapp.com",
+  projectId: "h-flash-cards",
+  storageBucket: "h-flash-cards.firebasestorage.app",
+  messagingSenderId: "977013443652",
+  appId: "1:977013443652:web:81d75c6452e4cd4b230011",
+  measurementId: "G-G3TQ1G96PT"
 };
-// ================================================
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
@@ -480,7 +479,6 @@ document.getElementById('toggleDirection').addEventListener('click', e=>{
   renderCard();
 });
 
-// Forward / Back / Flip buttons
 document.getElementById('prevBtn').addEventListener('click', ()=>{ current--; renderCard(); });
 document.getElementById('nextBtn').addEventListener('click', ()=>{ current++; renderCard(); });
 document.getElementById('flipBtn').addEventListener('click', ()=>{
