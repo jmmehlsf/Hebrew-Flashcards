@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hebrew Flashcards</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <style>
-  :root{
-    --bg:#111318; --card:#1c1f27; --accent:#3ea6ff; --text:#f2f2f2; --muted:#9aa1ab;
-  }
+  :root{ --bg:#111318; --card:#1c1f27; --accent:#3ea6ff; --text:#f2f2f2; --muted:#9aa1ab; }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);}
   header{display:flex;justify-content:space-around;padding:10px 0;background:#0b0d11;position:sticky;top:0;z-index:10;}
-  header button{background:none;border:none;color:var(--muted);font-size:15px;padding:8px 10px;}
+  header button{background:none;border:none;color:var(--muted);font-size:13px;padding:8px 4px;}
   header button.active{color:var(--accent);font-weight:700;border-bottom:2px solid var(--accent);}
   .page{display:none;padding:16px;max-width:480px;margin:0 auto;}
   .page.active{display:block;}
@@ -22,28 +22,38 @@
   .row>*{flex:1;}
   button.primary{margin-top:16px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#001522;font-weight:700;font-size:16px;}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-  .toolbar button{flex:1;min-width:80px;padding:8px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:13px;}
+  .toolbar button{flex:1;min-width:70px;padding:8px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:11px;}
   .toolbar button.on{background:var(--accent);color:#001522;font-weight:700;}
+  .deck-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;}
+  .deck-bar select{flex:1;}
   .card-wrap{position:relative;height:340px;touch-action:pan-y;}
-  .card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .2s;}
+  .card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4);}
   .gender{font-size:26px;margin-bottom:6px;}
-  .heb-word{font-size:52px;font-weight:700;direction:rtl;line-height:1.2;}
-  .heb-word.script{font-style:italic;font-family:"Times New Roman",serif;font-weight:400;}
+  .front-word{font-size:52px;font-weight:700;line-height:1.2;}
+  .front-word.heb{direction:rtl;}
+  .front-word.script{font-style:italic;font-family:"Times New Roman",serif;font-weight:400;}
   .sentence{direction:rtl;font-size:16px;color:var(--muted);margin-top:14px;line-height:1.5;}
   .sentence b{color:var(--text);font-weight:700;}
   .reveal{margin-top:18px;min-height:70px;}
-  .reveal .eng{font-size:20px;font-weight:600;}
+  .reveal .big{font-size:26px;font-weight:600;}
+  .reveal .big.heb{direction:rtl;}
   .reveal .translit{font-size:14px;color:var(--muted);margin-top:4px;}
-  .hint{font-size:12px;color:var(--muted);margin-top:14px;}
+  .reveal .backSentence{direction:rtl;font-size:15px;color:var(--muted);margin-top:8px;}
+  .reveal .addedBy{font-size:11px;color:var(--muted);margin-top:10px;}
+  .hint{font-size:12px;color:var(--muted);margin-top:14px;text-align:center;}
   .speak-btn{margin-top:10px;padding:8px 16px;border-radius:20px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:14px;}
-  .controls{display:flex;justify-content:space-between;margin-top:16px;gap:8px;}
-  .controls button{flex:1;padding:12px 0;border-radius:10px;border:none;font-size:14px;font-weight:600;}
+  .nav-row{display:flex;justify-content:space-between;margin-top:14px;gap:8px;}
+  .nav-row button{flex:1;padding:14px 0;border-radius:10px;border:none;font-size:16px;font-weight:700;background:#20242e;color:var(--text);}
+  .nav-row .flip-btn{background:var(--accent);color:#001522;}
+  .controls{display:flex;justify-content:space-between;margin-top:10px;gap:8px;}
+  .controls button{flex:1;padding:12px 0;border-radius:10px;border:none;font-size:13px;font-weight:600;}
   .btn-skip{background:#2a2d36;color:var(--text);}
   .btn-star{background:#2a2d36;color:gold;}
   .btn-star.starred{background:gold;color:#111;}
   .btn-shuffle{background:#2a2d36;color:var(--text);}
   .word-list li{background:#181b22;border-radius:10px;padding:10px;margin-bottom:8px;list-style:none;display:flex;justify-content:space-between;align-items:center;}
   .word-list button{background:none;border:none;color:#ff5c5c;font-size:14px;}
+  .word-list .meta{font-size:11px;color:var(--muted);display:block;}
   .empty{text-align:center;color:var(--muted);margin-top:60px;}
   .status{font-size:12px;color:var(--accent);min-height:16px;margin-top:2px;}
   .field-row{display:flex;gap:8px;align-items:flex-end;}
@@ -52,6 +62,14 @@
   .toggle-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;background:#181b22;padding:10px;border-radius:10px;}
   .toggle-row input{width:auto;}
   .toggle-row label{margin:0;font-size:13px;color:var(--text);}
+  .deck-manage{display:flex;gap:8px;margin-bottom:14px;}
+  .deck-manage input{flex:1;}
+  .deck-manage button{padding:10px 14px;border-radius:8px;border:none;background:var(--accent);color:#001522;font-weight:700;}
+  .deck-list li{background:#181b22;border-radius:10px;padding:10px;margin-bottom:8px;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+  .deck-list button{background:none;border:none;color:#ff5c5c;font-size:13px;}
+  .sync-banner{font-size:12px;text-align:center;padding:6px;border-radius:8px;margin-bottom:10px;}
+  .sync-ok{background:#123a1f;color:#7ee2a0;}
+  .sync-bad{background:#3a1212;color:#ff9c9c;}
 </style>
 </head>
 <body>
@@ -59,33 +77,44 @@
 <header>
   <button data-page="practice" class="active">Practice</button>
   <button data-page="add">Add Word</button>
+  <button data-page="decks">Decks</button>
   <button data-page="manage">My Words</button>
 </header>
 
-<!-- PRACTICE PAGE -->
 <div class="page active" id="page-practice">
+  <div class="sync-banner sync-ok" id="syncBanner">Connecting…</div>
+  <div class="deck-bar"><select id="deckFilter"></select></div>
   <div class="toolbar">
     <button id="toggleNiqqud">Hide Dots</button>
     <button id="toggleScript">Script</button>
     <button id="filterStar">★ Only</button>
+    <button id="toggleDirection">Start: HEB→ENG</button>
   </div>
-  <div class="card-wrap" id="cardWrap">
-    <div class="empty" id="emptyMsg">No words yet — add your first one in "Add Word"!</div>
+  <div class="card-wrap" id="cardWrap"><div class="empty" id="emptyMsg">Loading…</div></div>
+  <div class="nav-row">
+    <button id="prevBtn">◀ Back</button>
+    <button class="flip-btn" id="flipBtn">Flip</button>
+    <button id="nextBtn">Next ▶</button>
   </div>
   <div class="controls">
     <button class="btn-skip" id="skipBtn">Skip ▶</button>
     <button class="btn-star" id="starBtn">★ Star</button>
     <button class="btn-shuffle" id="shuffleBtn">🔀 Shuffle</button>
   </div>
-  <div class="hint">Tap the card to reveal meaning · swipe left/right to change cards</div>
+  <div class="hint">Tap the card, or use Flip/Back/Next · swipe also works</div>
 </div>
 
-<!-- ADD PAGE -->
 <div class="page" id="page-add">
+  <label>Your name (shown as who added the word — optional)</label>
+  <input id="inAddedBy" placeholder="e.g. Jordan">
+
   <div class="toggle-row">
     <input type="checkbox" id="autoTranslateToggle">
     <label for="autoTranslateToggle">Auto-translate as I type</label>
   </div>
+
+  <label>Deck</label>
+  <select id="inDeck"></select>
 
   <label>Hebrew word or sentence</label>
   <div class="field-row">
@@ -120,52 +149,82 @@
   <button class="primary" id="saveBtn">Save Word</button>
 </div>
 
-<!-- MANAGE PAGE -->
+<div class="page" id="page-decks">
+  <label>Create a new deck</label>
+  <div class="deck-manage">
+    <input id="newDeckName" placeholder="e.g. Chapter 3 Vocab">
+    <button id="addDeckBtn">Add</button>
+  </div>
+  <ul class="deck-list" id="deckList"></ul>
+</div>
+
 <div class="page" id="page-manage">
   <ul class="word-list" id="wordList"></ul>
 </div>
 
 <script>
-const STORAGE_KEY = "hebrewFlashcards";
-let words = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-let deck = [...words];
+// ====== PASTE YOUR FIREBASE CONFIG HERE ======
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+// ================================================
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const wordsCol = db.collection("words");
+const decksCol = db.collection("decks");
+const DEFAULT_DECK = "General";
+
+let words = [];
+let decks = [DEFAULT_DECK];
+let deckQueue = [];
 let current = 0;
 let showNiqqud = true;
 let scriptMode = false;
 let revealed = false;
 let starOnly = false;
-let autoTranslate = false; // OFF by default now — manual control
+let autoTranslate = false;
+let direction = 'h2e';
+let activeDeckFilter = 'ALL';
 
-// ---- Transliteration (approximate, rule-based) ----
-const CONSONANTS = {
-  'א':'','ב':'v','ג':'g','ד':'d','ה':'h','ו':'v','ז':'z','ח':'ch','ט':'t',
-  'י':'y','כ':'kh','ך':'kh','ל':'l','מ':'m','ם':'m','נ':'n','ן':'n','ס':'s',
-  'ע':'','פ':'f','ף':'f','צ':'tz','ץ':'tz','ק':'k','ר':'r','ש':'sh','ת':'t'
-};
-const NIQQUD = {
-  '\u05B0':'', '\u05B1':'e','\u05B2':'a','\u05B3':'o','\u05B4':'i','\u05B5':'e',
-  '\u05B6':'e','\u05B7':'a','\u05B8':'a','\u05B9':'o','\u05BA':'o','\u05BB':'u',
-  '\u05BC':'', '\u05C1':'','\u05C2':'','\u05C7':''
-};
-function transliterate(heb){
-  let out = "";
-  for(const ch of heb){
-    if(CONSONANTS[ch]!==undefined) out += CONSONANTS[ch];
-    else if(NIQQUD[ch]!==undefined) out += NIQQUD[ch];
-    else if(ch===' ') out += ' ';
-  }
-  return out || "";
-}
-function guessGender(heb){
-  const stripped = stripNiqqud(heb).trim();
-  if(/ה$/.test(stripped) || /ת$/.test(stripped)) return 'f';
-  return 'm';
-}
-function stripNiqqud(str){
-  return str.replace(/[\u0591-\u05C7]/g,"");
-}
+const syncBanner = document.getElementById('syncBanner');
 
-// ---- Free translation via MyMemory API ----
+const NAME_KEY = "hebrewFlashcards_myName";
+document.getElementById('inAddedBy').value = localStorage.getItem(NAME_KEY) || "";
+document.getElementById('inAddedBy').addEventListener('input', e=>{
+  localStorage.setItem(NAME_KEY, e.target.value);
+});
+
+wordsCol.onSnapshot(snap=>{
+  words = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+  syncBanner.textContent = "✓ Synced — shared with everyone using this link";
+  syncBanner.className = "sync-banner sync-ok";
+  rebuildDeckQueue();
+  if(document.getElementById('page-manage').classList.contains('active')) renderManage();
+}, err=>{
+  syncBanner.textContent = "⚠ Not connected — check your Firebase setup";
+  syncBanner.className = "sync-banner sync-bad";
+  console.error(err);
+});
+
+decksCol.onSnapshot(snap=>{
+  const fetched = snap.docs.map(d=>d.data().name);
+  decks = [DEFAULT_DECK, ...fetched.filter(n=>n!==DEFAULT_DECK)];
+  refreshDeckDropdowns();
+  if(document.getElementById('page-decks').classList.contains('active')) renderDecks();
+});
+
+const CONSONANTS = {'א':'','ב':'v','ג':'g','ד':'d','ה':'h','ו':'v','ז':'z','ח':'ch','ט':'t','י':'y','כ':'kh','ך':'kh','ל':'l','מ':'m','ם':'m','נ':'n','ן':'n','ס':'s','ע':'','פ':'f','ף':'f','צ':'tz','ץ':'tz','ק':'k','ר':'r','ש':'sh','ת':'t'};
+const NIQQUD = {'\u05B0':'','\u05B1':'e','\u05B2':'a','\u05B3':'o','\u05B4':'i','\u05B5':'e','\u05B6':'e','\u05B7':'a','\u05B8':'a','\u05B9':'o','\u05BA':'o','\u05BB':'u','\u05BC':'','\u05C1':'','\u05C2':'','\u05C7':''};
+function transliterate(heb){ let out=""; for(const ch of heb){ if(CONSONANTS[ch]!==undefined) out+=CONSONANTS[ch]; else if(NIQQUD[ch]!==undefined) out+=NIQQUD[ch]; else if(ch===' ') out+=' '; } return out||""; }
+function guessGender(heb){ const s=stripNiqqud(heb).trim(); if(/ה$/.test(s)||/ת$/.test(s)) return 'f'; return 'm'; }
+function stripNiqqud(str){ return str.replace(/[\u0591-\u05C7]/g,""); }
+
 async function translateText(text, from, to){
   if(!text.trim()) return "";
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
@@ -179,67 +238,46 @@ const engInput = document.getElementById('inEng');
 const hebStatus = document.getElementById('hebStatus');
 const engStatus = document.getElementById('engStatus');
 const autoToggle = document.getElementById('autoTranslateToggle');
+const deckFilterEl = document.getElementById('deckFilter');
+const inDeckEl = document.getElementById('inDeck');
 
-autoToggle.addEventListener('change', ()=>{
-  autoTranslate = autoToggle.checked;
-});
+autoToggle.addEventListener('change', ()=>{ autoTranslate = autoToggle.checked; });
 
 let debounceTimer = null;
-
 hebInput.addEventListener('input', ()=>{
   document.getElementById('inTranslit').value = transliterate(hebInput.value);
   document.getElementById('inGender').value = guessGender(hebInput.value);
-  if(!autoTranslate) return; // manual mode: do nothing further
+  if(!autoTranslate) return;
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(()=> runTranslate('heb-to-eng'), 700);
 });
-
 engInput.addEventListener('input', ()=>{
-  if(!autoTranslate) return; // manual mode: do nothing further
+  if(!autoTranslate) return;
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(()=> runTranslate('eng-to-heb'), 700);
 });
-
 document.getElementById('manualTranslateToEng').addEventListener('click', ()=> runTranslate('heb-to-eng'));
 document.getElementById('manualTranslateToHeb').addEventListener('click', ()=> runTranslate('eng-to-heb'));
 
-async function runTranslate(direction){
-  if(direction === 'heb-to-eng'){
+async function runTranslate(dir){
+  if(dir==='heb-to-eng'){
     const val = hebInput.value.trim();
     if(!val){ engStatus.textContent=''; return; }
     engStatus.textContent = 'Translating…';
-    try{
-      const translated = await translateText(val, 'he', 'en');
-      if(translated){
-        engInput.value = translated;
-        engStatus.textContent = 'Translated from Hebrew (check it!)';
-      } else {
-        engStatus.textContent = 'Could not translate — enter manually.';
-      }
-    }catch(e){
-      engStatus.textContent = 'Translation unavailable — enter manually.';
-    }
+    try{ const t = await translateText(val,'he','en'); if(t){ engInput.value=t; engStatus.textContent='Translated from Hebrew (check it!)'; } else engStatus.textContent='Could not translate — enter manually.'; }
+    catch(e){ engStatus.textContent='Translation unavailable — enter manually.'; }
   } else {
     const val = engInput.value.trim();
     if(!val){ hebStatus.textContent=''; return; }
     hebStatus.textContent = 'Translating…';
     try{
-      const translated = await translateText(val, 'en', 'he');
-      if(translated){
-        hebInput.value = translated;
-        document.getElementById('inTranslit').value = transliterate(translated);
-        document.getElementById('inGender').value = guessGender(translated);
-        hebStatus.textContent = 'Translated from English (check it!)';
-      } else {
-        hebStatus.textContent = 'Could not translate — enter manually.';
-      }
-    }catch(e){
-      hebStatus.textContent = 'Translation unavailable — enter manually.';
-    }
+      const t = await translateText(val,'en','he');
+      if(t){ hebInput.value=t; document.getElementById('inTranslit').value=transliterate(t); document.getElementById('inGender').value=guessGender(t); hebStatus.textContent='Translated from English (check it!)'; }
+      else hebStatus.textContent='Could not translate — enter manually.';
+    }catch(e){ hebStatus.textContent='Translation unavailable — enter manually.'; }
   }
 }
 
-// ---- Navigation ----
 document.querySelectorAll('header button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('header button').forEach(b=>b.classList.remove('active'));
@@ -247,63 +285,99 @@ document.querySelectorAll('header button').forEach(btn=>{
     btn.classList.add('active');
     document.getElementById('page-'+btn.dataset.page).classList.add('active');
     if(btn.dataset.page==='manage') renderManage();
-    if(btn.dataset.page==='practice') renderCard();
+    if(btn.dataset.page==='decks') renderDecks();
+    if(btn.dataset.page==='add') refreshDeckDropdowns();
+    if(btn.dataset.page==='practice') rebuildDeckQueue();
   });
 });
 
-// ---- Save word ----
-document.getElementById('saveBtn').addEventListener('click', ()=>{
+function refreshDeckDropdowns(){
+  inDeckEl.innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
+  const prevVal = deckFilterEl.value || 'ALL';
+  deckFilterEl.innerHTML = `<option value="ALL">All Decks</option>` + decks.map(d=>`<option value="${d}">${d}</option>`).join('');
+  deckFilterEl.value = decks.includes(prevVal) || prevVal==='ALL' ? prevVal : 'ALL';
+  activeDeckFilter = deckFilterEl.value;
+}
+deckFilterEl.addEventListener('change', ()=>{ activeDeckFilter = deckFilterEl.value; rebuildDeckQueue(); });
+
+document.getElementById('addDeckBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('newDeckName').value.trim();
+  if(!name) return;
+  if(decks.includes(name)){ alert('That deck already exists.'); return; }
+  await decksCol.add({ name });
+  document.getElementById('newDeckName').value = '';
+});
+
+function renderDecks(){
+  const list = document.getElementById('deckList');
+  list.innerHTML = '';
+  decks.forEach(d=>{
+    const count = words.filter(w=>w.deck===d).length;
+    const li = document.createElement('li');
+    li.innerHTML = `<span>${d} <span style="color:var(--muted);font-size:12px;">(${count} word${count===1?'':'s'})</span></span>`;
+    if(d !== DEFAULT_DECK){
+      const del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.addEventListener('click', async ()=>{
+        if(!confirm(`Delete deck "${d}"? Its words will move to "${DEFAULT_DECK}".`)) return;
+        const toMove = words.filter(w=>w.deck===d);
+        await Promise.all(toMove.map(w=> wordsCol.doc(w.id).update({ deck: DEFAULT_DECK })));
+        const snap = await decksCol.where("name","==",d).get();
+        await Promise.all(snap.docs.map(docu=> decksCol.doc(docu.id).delete()));
+      });
+      li.appendChild(del);
+    }
+    list.appendChild(li);
+  });
+}
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const heb = hebInput.value.trim();
   const eng = engInput.value.trim();
   if(!heb || !eng){ alert("Please fill in both the Hebrew and English fields."); return; }
   const word = {
-    id: Date.now(),
     heb, eng,
     translit: document.getElementById('inTranslit').value.trim(),
     gender: document.getElementById('inGender').value,
     sentence: document.getElementById('inSentence').value.trim(),
-    starred: false
+    deck: inDeckEl.value || DEFAULT_DECK,
+    starred: false,
+    addedBy: document.getElementById('inAddedBy').value.trim() || "Anonymous",
+    createdAt: Date.now()
   };
-  words.push(word);
-  save();
-  deck = starOnly ? words.filter(w=>w.starred) : [...words];
-  current = deck.length-1;
-  hebInput.value='';
-  engInput.value='';
+  await wordsCol.add(word);
+  hebInput.value=''; engInput.value='';
   document.getElementById('inTranslit').value='';
   document.getElementById('inSentence').value='';
   hebStatus.textContent=''; engStatus.textContent='';
-  alert("Saved! Go to Practice to review it.");
+  alert("Saved! Everyone using this link will see it too.");
 });
 
-function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); }
-
-// ---- Manage list ----
 function renderManage(){
   const list = document.getElementById('wordList');
   list.innerHTML = '';
   if(words.length===0){ list.innerHTML = '<div class="empty">No words yet.</div>'; return; }
   words.forEach(w=>{
     const li = document.createElement('li');
-    li.innerHTML = `<span dir="rtl">${w.heb} — ${w.eng}</span>`;
+    li.innerHTML = `<span dir="rtl">${w.heb} — ${w.eng}<span class="meta" dir="ltr">Deck: ${w.deck} · Added by: ${w.addedBy||'Anonymous'}</span></span>`;
     const del = document.createElement('button');
     del.textContent = 'Delete';
-    del.addEventListener('click', ()=>{
-      words = words.filter(x=>x.id!==w.id);
-      save();
-      deck = starOnly ? words.filter(x=>x.starred) : [...words];
-      current = 0;
-      renderManage();
-    });
+    del.addEventListener('click', async ()=>{ await wordsCol.doc(w.id).delete(); });
     li.appendChild(del);
     list.appendChild(li);
   });
 }
 
-// ---- Practice / Card rendering ----
-function displayHeb(heb){
-  return showNiqqud ? heb : stripNiqqud(heb);
+function rebuildDeckQueue(){
+  let source = words;
+  if(activeDeckFilter !== 'ALL') source = source.filter(w=>w.deck===activeDeckFilter);
+  if(starOnly) source = source.filter(w=>w.starred);
+  deckQueue = [...source];
+  current = 0;
+  renderCard();
 }
+
+function displayHeb(heb){ return showNiqqud ? heb : stripNiqqud(heb); }
 function boldSentence(sentence, heb){
   if(!sentence) return "";
   const bare = stripNiqqud(heb).trim();
@@ -316,28 +390,36 @@ function boldSentence(sentence, heb){
 function renderCard(){
   const wrap = document.getElementById('cardWrap');
   wrap.innerHTML = '';
-  if(deck.length===0){
-    wrap.innerHTML = '<div class="empty" id="emptyMsg">No words to show. Add some, or turn off ★ Only.</div>';
+  if(deckQueue.length===0){
+    wrap.innerHTML = '<div class="empty">No words to show. Add some, pick a different deck, or turn off ★ Only.</div>';
     return;
   }
-  if(current>=deck.length) current = 0;
-  if(current<0) current = deck.length-1;
-  const w = deck[current];
+  if(current>=deckQueue.length) current = 0;
+  if(current<0) current = deckQueue.length-1;
+  const w = deckQueue[current];
   revealed = false;
 
   const card = document.createElement('div');
   card.className = 'card';
   const emoji = w.gender==='m' ? '👨' : w.gender==='f' ? '👩' : '';
-  card.innerHTML = `
-    <div class="gender">${emoji}</div>
-    <div class="heb-word ${scriptMode?'script':''}">${displayHeb(w.heb)}</div>
-    <div class="sentence">${boldSentence(w.sentence, w.heb)}</div>
-    <div class="reveal" id="revealArea"></div>
-  `;
-  card.addEventListener('click', ()=>{
-    revealed = !revealed;
-    renderReveal(w);
-  });
+
+  let frontHTML = '';
+  if(direction === 'h2e'){
+    frontHTML = `
+      <div class="gender">${emoji}</div>
+      <div class="front-word heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div>
+      <div class="sentence">${boldSentence(w.sentence, w.heb)}</div>
+    `;
+  } else {
+    frontHTML = `
+      <div class="gender">${emoji}</div>
+      <div class="front-word">${w.eng}</div>
+      <div class="hint">tap or press Flip to reveal Hebrew</div>
+    `;
+  }
+
+  card.innerHTML = frontHTML + `<div class="reveal" id="revealArea"></div>`;
+  card.addEventListener('click', ()=>{ revealed = !revealed; renderReveal(w); });
   wrap.appendChild(card);
   attachSwipe(card);
   updateStarBtn(w);
@@ -346,15 +428,23 @@ function renderCard(){
 function renderReveal(w){
   const area = document.getElementById('revealArea');
   if(!revealed){ area.innerHTML=''; return; }
-  area.innerHTML = `
-    <div class="eng">${w.eng}</div>
-    <div class="translit">${w.translit}</div>
-    <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
-  `;
-  document.getElementById('speakBtn').addEventListener('click', e=>{
-    e.stopPropagation();
-    speak(w.heb);
-  });
+  if(direction === 'h2e'){
+    area.innerHTML = `
+      <div class="big">${w.eng}</div>
+      <div class="translit">${w.translit}</div>
+      <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
+      <div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>
+    `;
+  } else {
+    area.innerHTML = `
+      <div class="big heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div>
+      <div class="translit">${w.translit}</div>
+      ${w.sentence ? `<div class="backSentence">${boldSentence(w.sentence, w.heb)}</div>` : ''}
+      <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
+      <div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>
+    `;
+  }
+  document.getElementById('speakBtn').addEventListener('click', e=>{ e.stopPropagation(); speak(w.heb); });
 }
 
 function speak(text){
@@ -365,12 +455,8 @@ function speak(text){
   speechSynthesis.speak(utter);
 }
 
-function updateStarBtn(w){
-  const btn = document.getElementById('starBtn');
-  btn.classList.toggle('starred', !!w.starred);
-}
+function updateStarBtn(w){ document.getElementById('starBtn').classList.toggle('starred', !!w.starred); }
 
-// ---- Controls ----
 document.getElementById('toggleNiqqud').addEventListener('click', e=>{
   showNiqqud = !showNiqqud;
   e.target.textContent = showNiqqud ? 'Hide Dots' : 'Show Dots';
@@ -385,44 +471,44 @@ document.getElementById('toggleScript').addEventListener('click', e=>{
 document.getElementById('filterStar').addEventListener('click', e=>{
   starOnly = !starOnly;
   e.target.classList.toggle('on', starOnly);
-  deck = starOnly ? words.filter(w=>w.starred) : [...words];
-  current = 0;
-  renderCard();
+  rebuildDeckQueue();
 });
-document.getElementById('skipBtn').addEventListener('click', ()=>{
-  current++;
+document.getElementById('toggleDirection').addEventListener('click', e=>{
+  direction = direction === 'h2e' ? 'e2h' : 'h2e';
+  e.target.textContent = direction === 'h2e' ? 'Start: HEB→ENG' : 'Start: ENG→HEB';
+  e.target.classList.toggle('on', direction === 'e2h');
   renderCard();
-});
-document.getElementById('shuffleBtn').addEventListener('click', ()=>{
-  for(let i=deck.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [deck[i],deck[j]]=[deck[j],deck[i]];
-  }
-  current = 0;
-  renderCard();
-});
-document.getElementById('starBtn').addEventListener('click', ()=>{
-  if(deck.length===0) return;
-  const w = deck[current];
-  w.starred = !w.starred;
-  save();
-  updateStarBtn(w);
 });
 
-// ---- Swipe ----
+// Forward / Back / Flip buttons
+document.getElementById('prevBtn').addEventListener('click', ()=>{ current--; renderCard(); });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ current++; renderCard(); });
+document.getElementById('flipBtn').addEventListener('click', ()=>{
+  if(deckQueue.length===0) return;
+  revealed = !revealed;
+  renderReveal(deckQueue[current]);
+});
+
+document.getElementById('skipBtn').addEventListener('click', ()=>{ current++; renderCard(); });
+document.getElementById('shuffleBtn').addEventListener('click', ()=>{
+  for(let i=deckQueue.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [deckQueue[i],deckQueue[j]]=[deckQueue[j],deckQueue[i]]; }
+  current = 0;
+  renderCard();
+});
+document.getElementById('starBtn').addEventListener('click', async ()=>{
+  if(deckQueue.length===0) return;
+  const w = deckQueue[current];
+  await wordsCol.doc(w.id).update({ starred: !w.starred });
+});
+
 function attachSwipe(card){
   let startX = 0;
   card.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; });
   card.addEventListener('touchend', e=>{
     const dx = e.changedTouches[0].clientX - startX;
-    if(Math.abs(dx) > 60){
-      if(dx < 0) current++; else current--;
-      renderCard();
-    }
+    if(Math.abs(dx) > 60){ if(dx < 0) current++; else current--; renderCard(); }
   });
 }
-
-renderCard();
 </script>
 </body>
 </html>
