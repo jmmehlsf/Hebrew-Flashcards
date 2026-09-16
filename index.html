@@ -48,12 +48,13 @@
   .nav-row{display:flex;justify-content:space-between;margin-top:14px;gap:8px;}
   .nav-row button{flex:1;padding:14px 0;border-radius:10px;border:none;font-size:16px;font-weight:700;background:#20242e;color:var(--text);}
   .nav-row .flip-btn{background:var(--accent);color:#001522;}
-  .controls{display:flex;justify-content:space-between;margin-top:10px;gap:8px;}
-  .controls button{flex:1;padding:12px 0;border-radius:10px;border:none;font-size:13px;font-weight:600;}
+  .controls{display:flex;justify-content:space-between;margin-top:10px;gap:8px;flex-wrap:wrap;}
+  .controls button{flex:1;min-width:70px;padding:12px 0;border-radius:10px;border:none;font-size:13px;font-weight:600;}
   .btn-skip{background:#2a2d36;color:var(--text);}
   .btn-star{background:#2a2d36;color:gold;}
   .btn-star.starred{background:gold;color:#111;}
   .btn-shuffle{background:#2a2d36;color:var(--text);}
+  .btn-edit{background:#2a2d36;color:#7ec9ff;}
   .word-list li{background:#181b22;border-radius:10px;padding:10px;margin-bottom:8px;list-style:none;display:flex;justify-content:space-between;align-items:center;}
   .word-list button{background:none;border:none;color:#ff5c5c;font-size:14px;}
   .word-list .meta{font-size:11px;color:var(--muted);display:block;}
@@ -73,6 +74,14 @@
   .sync-banner{font-size:12px;text-align:center;padding:6px;border-radius:8px;margin-bottom:10px;}
   .sync-ok{background:#123a1f;color:#7ee2a0;}
   .sync-bad{background:#3a1212;color:#ff9c9c;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:var(--card);border-radius:16px;padding:20px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;}
+  .modal-box h3{margin-top:0;}
+  .modal-actions{display:flex;gap:8px;margin-top:16px;}
+  .modal-actions button{flex:1;padding:12px 0;border-radius:10px;border:none;font-weight:700;}
+  .modal-save{background:var(--accent);color:#001522;}
+  .modal-cancel{background:#2a2d36;color:var(--text);}
 </style>
 </head>
 <body>
@@ -106,6 +115,7 @@
     <button class="btn-skip" id="skipBtn">Skip ▶</button>
     <button class="btn-star" id="starBtn">★ Star</button>
     <button class="btn-shuffle" id="shuffleBtn">🔀 Shuffle</button>
+    <button class="btn-edit" id="editCardBtn">✏️ Edit</button>
   </div>
   <div class="hint">Tap the card, or use Flip/Back/Next · swipe also works</div>
 </div>
@@ -168,7 +178,36 @@
   <ul class="word-list" id="wordList"></ul>
 </div>
 
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <h3>Edit Word</h3>
+    <label>Hebrew</label>
+    <input id="editHeb" dir="rtl">
+    <label>English</label>
+    <input id="editEng">
+    <label>Transliteration</label>
+    <input id="editTranslit">
+    <label>Gender</label>
+    <select id="editGender">
+      <option value="m">Masculine 👨</option>
+      <option value="f">Feminine 👩</option>
+      <option value="n">N/A</option>
+    </select>
+    <label>Deck</label>
+    <select id="editDeck"></select>
+    <label>Example sentence (Hebrew)</label>
+    <textarea id="editSentence" dir="rtl"></textarea>
+    <div class="modal-actions">
+      <button class="modal-cancel" id="editCancelBtn">Cancel</button>
+      <button class="modal-save" id="editSaveBtn">Save Changes</button>
+    </div>
+  </div>
+</div>
+
 <script>
+const EDIT_PASSCODE = "613";
+
 const firebaseConfig = {
   apiKey: "AIzaSyChe-jqMqtme1qTdsQKtr4SRffzCXUDgl0",
   authDomain: "h-flash-cards.firebaseapp.com",
@@ -194,10 +233,23 @@ let scriptMode = false;
 let revealed = false;
 let starOnly = false;
 let autoTranslate = false;
-let direction = 'h2e'; // 'h2e' = Hebrew First, 'e2h' = English First
+let direction = 'h2e';
 let activeDeckFilter = 'ALL';
+let editingWordId = null;
 
 const syncBanner = document.getElementById('syncBanner');
+
+function checkPasscode(){
+  if(sessionStorage.getItem('editUnlocked') === 'true') return true;
+  const entered = prompt("Enter the class passcode to add, edit, or delete:");
+  if(entered === null) return false;
+  if(entered === EDIT_PASSCODE){
+    sessionStorage.setItem('editUnlocked', 'true');
+    return true;
+  }
+  alert("Incorrect passcode.");
+  return false;
+}
 
 const NAME_KEY = "hebrewFlashcards_myName";
 document.getElementById('inAddedBy').value = localStorage.getItem(NAME_KEY) || "";
@@ -298,6 +350,7 @@ document.querySelectorAll('header button').forEach(btn=>{
 
 function refreshDeckDropdowns(){
   inDeckEl.innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
+  document.getElementById('editDeck').innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
   const prevVal = deckFilterEl.value || 'ALL';
   deckFilterEl.innerHTML = `<option value="ALL">General (All Cards)</option>` + decks.filter(d=>d!==DEFAULT_DECK).map(d=>`<option value="${d}">${d}</option>`).join('');
   deckFilterEl.value = (prevVal==='ALL' || decks.includes(prevVal)) ? prevVal : 'ALL';
@@ -306,6 +359,7 @@ function refreshDeckDropdowns(){
 deckFilterEl.addEventListener('change', ()=>{ activeDeckFilter = deckFilterEl.value; rebuildDeckQueue(); });
 
 document.getElementById('addDeckBtn').addEventListener('click', async ()=>{
+  if(!checkPasscode()) return;
   const name = document.getElementById('newDeckName').value.trim();
   if(!name) return;
   if(decks.includes(name)){ alert('That deck already exists.'); return; }
@@ -324,6 +378,7 @@ function renderDecks(){
       const del = document.createElement('button');
       del.textContent = 'Delete';
       del.addEventListener('click', async ()=>{
+        if(!checkPasscode()) return;
         if(!confirm(`Delete deck "${d}"? Its words will move to "${DEFAULT_DECK}".`)) return;
         const toMove = words.filter(w=>w.deck===d);
         await Promise.all(toMove.map(w=> wordsCol.doc(w.id).update({ deck: DEFAULT_DECK })));
@@ -337,6 +392,7 @@ function renderDecks(){
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  if(!checkPasscode()) return;
   const heb = hebInput.value.trim();
   const eng = engInput.value.trim();
   if(!heb || !eng){ alert("Please fill in both the Hebrew and English fields."); return; }
@@ -367,7 +423,10 @@ function renderManage(){
     li.innerHTML = `<span dir="rtl">${w.heb} — ${w.eng}<span class="meta" dir="ltr">Deck: ${w.deck} · Added by: ${w.addedBy||'Anonymous'}</span></span>`;
     const del = document.createElement('button');
     del.textContent = 'Delete';
-    del.addEventListener('click', async ()=>{ await wordsCol.doc(w.id).delete(); });
+    del.addEventListener('click', async ()=>{
+      if(!checkPasscode()) return;
+      await wordsCol.doc(w.id).delete();
+    });
     li.appendChild(del);
     list.appendChild(li);
   });
@@ -510,6 +569,39 @@ document.getElementById('starBtn').addEventListener('click', async ()=>{
   if(deckQueue.length===0) return;
   const w = deckQueue[current];
   await wordsCol.doc(w.id).update({ starred: !w.starred });
+});
+
+document.getElementById('editCardBtn').addEventListener('click', ()=>{
+  if(deckQueue.length===0) return;
+  if(!checkPasscode()) return;
+  const w = deckQueue[current];
+  editingWordId = w.id;
+  document.getElementById('editHeb').value = w.heb || '';
+  document.getElementById('editEng').value = w.eng || '';
+  document.getElementById('editTranslit').value = w.translit || '';
+  document.getElementById('editGender').value = w.gender || 'n';
+  document.getElementById('editDeck').value = w.deck || DEFAULT_DECK;
+  document.getElementById('editSentence').value = w.sentence || '';
+  document.getElementById('editModal').classList.add('show');
+});
+document.getElementById('editCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('editModal').classList.remove('show');
+  editingWordId = null;
+});
+document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
+  if(!editingWordId) return;
+  const heb = document.getElementById('editHeb').value.trim();
+  const eng = document.getElementById('editEng').value.trim();
+  if(!heb || !eng){ alert("Hebrew and English are required."); return; }
+  await wordsCol.doc(editingWordId).update({
+    heb, eng,
+    translit: document.getElementById('editTranslit').value.trim(),
+    gender: document.getElementById('editGender').value,
+    deck: document.getElementById('editDeck').value,
+    sentence: document.getElementById('editSentence').value.trim()
+  });
+  document.getElementById('editModal').classList.remove('show');
+  editingWordId = null;
 });
 
 function attachSwipe(card){
