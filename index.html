@@ -46,6 +46,12 @@
   .word-list button{background:none;border:none;color:#ff5c5c;font-size:14px;}
   .empty{text-align:center;color:var(--muted);margin-top:60px;}
   .status{font-size:12px;color:var(--accent);min-height:16px;margin-top:2px;}
+  .field-row{display:flex;gap:8px;align-items:flex-end;}
+  .field-row input{flex:1;}
+  .translate-btn{white-space:nowrap;padding:10px 12px;border-radius:8px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:13px;}
+  .toggle-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;background:#181b22;padding:10px;border-radius:10px;}
+  .toggle-row input{width:auto;}
+  .toggle-row label{margin:0;font-size:13px;color:var(--text);}
 </style>
 </head>
 <body>
@@ -76,12 +82,23 @@
 
 <!-- ADD PAGE -->
 <div class="page" id="page-add">
+  <div class="toggle-row">
+    <input type="checkbox" id="autoTranslateToggle">
+    <label for="autoTranslateToggle">Auto-translate as I type</label>
+  </div>
+
   <label>Hebrew word or sentence</label>
-  <input id="inHeb" placeholder="שָׁלוֹם" dir="rtl">
+  <div class="field-row">
+    <input id="inHeb" placeholder="שָׁלוֹם" dir="rtl">
+    <button class="translate-btn" id="manualTranslateToEng">Translate →</button>
+  </div>
   <div class="status" id="hebStatus"></div>
 
   <label>English meaning</label>
-  <input id="inEng" placeholder="hello / peace">
+  <div class="field-row">
+    <input id="inEng" placeholder="hello / peace">
+    <button class="translate-btn" id="manualTranslateToHeb">← Translate</button>
+  </div>
   <div class="status" id="engStatus"></div>
 
   <div class="row">
@@ -117,10 +134,7 @@ let showNiqqud = true;
 let scriptMode = false;
 let revealed = false;
 let starOnly = false;
-
-// track which field was last auto-filled by translation, so we don't fight the user's own typing
-let hebAutofilled = false;
-let engAutofilled = false;
+let autoTranslate = false; // OFF by default now — manual control
 
 // ---- Transliteration (approximate, rule-based) ----
 const CONSONANTS = {
@@ -150,9 +164,6 @@ function guessGender(heb){
 function stripNiqqud(str){
   return str.replace(/[\u0591-\u05C7]/g,"");
 }
-function isHebrewText(str){
-  return /[\u0590-\u05FF]/.test(str);
-}
 
 // ---- Free translation via MyMemory API ----
 async function translateText(text, from, to){
@@ -163,59 +174,70 @@ async function translateText(text, from, to){
   return data?.responseData?.translatedText || "";
 }
 
-let debounceTimer = null;
 const hebInput = document.getElementById('inHeb');
 const engInput = document.getElementById('inEng');
 const hebStatus = document.getElementById('hebStatus');
 const engStatus = document.getElementById('engStatus');
+const autoToggle = document.getElementById('autoTranslateToggle');
+
+autoToggle.addEventListener('change', ()=>{
+  autoTranslate = autoToggle.checked;
+});
+
+let debounceTimer = null;
 
 hebInput.addEventListener('input', ()=>{
   document.getElementById('inTranslit').value = transliterate(hebInput.value);
   document.getElementById('inGender').value = guessGender(hebInput.value);
-  hebAutofilled = false; // user is typing Hebrew themselves
+  if(!autoTranslate) return; // manual mode: do nothing further
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(async ()=>{
+  debounceTimer = setTimeout(()=> runTranslate('heb-to-eng'), 700);
+});
+
+engInput.addEventListener('input', ()=>{
+  if(!autoTranslate) return; // manual mode: do nothing further
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(()=> runTranslate('eng-to-heb'), 700);
+});
+
+document.getElementById('manualTranslateToEng').addEventListener('click', ()=> runTranslate('heb-to-eng'));
+document.getElementById('manualTranslateToHeb').addEventListener('click', ()=> runTranslate('eng-to-heb'));
+
+async function runTranslate(direction){
+  if(direction === 'heb-to-eng'){
     const val = hebInput.value.trim();
-    if(!val) { engStatus.textContent=''; return; }
+    if(!val){ engStatus.textContent=''; return; }
     engStatus.textContent = 'Translating…';
     try{
       const translated = await translateText(val, 'he', 'en');
       if(translated){
         engInput.value = translated;
-        engAutofilled = true;
-        engStatus.textContent = 'Auto-filled from Hebrew (check it!)';
+        engStatus.textContent = 'Translated from Hebrew (check it!)';
       } else {
-        engStatus.textContent = 'Could not auto-translate — enter manually.';
+        engStatus.textContent = 'Could not translate — enter manually.';
       }
     }catch(e){
       engStatus.textContent = 'Translation unavailable — enter manually.';
     }
-  }, 700);
-});
-
-engInput.addEventListener('input', ()=>{
-  engAutofilled = false; // user is typing English themselves
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(async ()=>{
+  } else {
     const val = engInput.value.trim();
-    if(!val) { hebStatus.textContent=''; return; }
+    if(!val){ hebStatus.textContent=''; return; }
     hebStatus.textContent = 'Translating…';
     try{
       const translated = await translateText(val, 'en', 'he');
       if(translated){
         hebInput.value = translated;
-        hebAutofilled = true;
         document.getElementById('inTranslit').value = transliterate(translated);
         document.getElementById('inGender').value = guessGender(translated);
-        hebStatus.textContent = 'Auto-filled from English (check it!)';
+        hebStatus.textContent = 'Translated from English (check it!)';
       } else {
-        hebStatus.textContent = 'Could not auto-translate — enter manually.';
+        hebStatus.textContent = 'Could not translate — enter manually.';
       }
     }catch(e){
       hebStatus.textContent = 'Translation unavailable — enter manually.';
     }
-  }, 700);
-});
+  }
+}
 
 // ---- Navigation ----
 document.querySelectorAll('header button').forEach(btn=>{
