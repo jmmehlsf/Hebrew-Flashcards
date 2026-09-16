@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hebrew Flashcards</title>
+<style>
+  :root{
+    --bg:#111318; --card:#1c1f27; --accent:#3ea6ff; --text:#f2f2f2; --muted:#9aa1ab;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);}
+  header{display:flex;justify-content:space-around;padding:10px 0;background:#0b0d11;position:sticky;top:0;z-index:10;}
+  header button{background:none;border:none;color:var(--muted);font-size:15px;padding:8px 10px;}
+  header button.active{color:var(--accent);font-weight:700;border-bottom:2px solid var(--accent);}
+  .page{display:none;padding:16px;max-width:480px;margin:0 auto;}
+  .page.active{display:block;}
+  label{display:block;margin:12px 0 4px;font-size:13px;color:var(--muted);}
+  input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #333;background:#0e1015;color:var(--text);font-size:16px;}
+  textarea{resize:vertical;min-height:50px;}
+  .row{display:flex;gap:8px;}
+  .row>*{flex:1;}
+  button.primary{margin-top:16px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#001522;font-weight:700;font-size:16px;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .toolbar button{flex:1;min-width:80px;padding:8px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:13px;}
+  .toolbar button.on{background:var(--accent);color:#001522;font-weight:700;}
+  .card-wrap{position:relative;height:340px;touch-action:pan-y;}
+  .card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4);transition:transform .2s;}
+  .gender{font-size:26px;margin-bottom:6px;}
+  .heb-word{font-size:52px;font-weight:700;direction:rtl;line-height:1.2;}
+  .heb-word.script{font-style:italic;font-family:"Times New Roman",serif;font-weight:400;}
+  .sentence{direction:rtl;font-size:16px;color:var(--muted);margin-top:14px;line-height:1.5;}
+  .sentence b{color:var(--text);font-weight:700;}
+  .reveal{margin-top:18px;min-height:70px;}
+  .reveal .eng{font-size:20px;font-weight:600;}
+  .reveal .translit{font-size:14px;color:var(--muted);margin-top:4px;}
+  .hint{font-size:12px;color:var(--muted);margin-top:14px;}
+  .speak-btn{margin-top:10px;padding:8px 16px;border-radius:20px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:14px;}
+  .controls{display:flex;justify-content:space-between;margin-top:16px;gap:8px;}
+  .controls button{flex:1;padding:12px 0;border-radius:10px;border:none;font-size:14px;font-weight:600;}
+  .btn-skip{background:#2a2d36;color:var(--text);}
+  .btn-star{background:#2a2d36;color:gold;}
+  .btn-star.starred{background:gold;color:#111;}
+  .btn-shuffle{background:#2a2d36;color:var(--text);}
+  .word-list li{background:#181b22;border-radius:10px;padding:10px;margin-bottom:8px;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+  .word-list button{background:none;border:none;color:#ff5c5c;font-size:14px;}
+  .empty{text-align:center;color:var(--muted);margin-top:60px;}
+  .status{font-size:12px;color:var(--accent);min-height:16px;margin-top:2px;}
+</style>
+</head>
+<body>
+
+<header>
+  <button data-page="practice" class="active">Practice</button>
+  <button data-page="add">Add Word</button>
+  <button data-page="manage">My Words</button>
+</header>
+
+<!-- PRACTICE PAGE -->
+<div class="page active" id="page-practice">
+  <div class="toolbar">
+    <button id="toggleNiqqud">Hide Dots</button>
+    <button id="toggleScript">Script</button>
+    <button id="filterStar">★ Only</button>
+  </div>
+  <div class="card-wrap" id="cardWrap">
+    <div class="empty" id="emptyMsg">No words yet — add your first one in "Add Word"!</div>
+  </div>
+  <div class="controls">
+    <button class="btn-skip" id="skipBtn">Skip ▶</button>
+    <button class="btn-star" id="starBtn">★ Star</button>
+    <button class="btn-shuffle" id="shuffleBtn">🔀 Shuffle</button>
+  </div>
+  <div class="hint">Tap the card to reveal meaning · swipe left/right to change cards</div>
+</div>
+
+<!-- ADD PAGE -->
+<div class="page" id="page-add">
+  <label>Hebrew word or sentence</label>
+  <input id="inHeb" placeholder="שָׁלוֹם" dir="rtl">
+  <div class="status" id="hebStatus"></div>
+
+  <label>English meaning</label>
+  <input id="inEng" placeholder="hello / peace">
+  <div class="status" id="engStatus"></div>
+
+  <div class="row">
+    <div>
+      <label>Transliteration (auto-guessed, editable)</label>
+      <input id="inTranslit" placeholder="shalom">
+    </div>
+    <div>
+      <label>Gender</label>
+      <select id="inGender">
+        <option value="m">Masculine 👨</option>
+        <option value="f">Feminine 👩</option>
+        <option value="n">N/A</option>
+      </select>
+    </div>
+  </div>
+  <label>Example sentence (Hebrew, optional)</label>
+  <textarea id="inSentence" dir="rtl" placeholder="אֲנִי אוֹמֵר שָׁלוֹם"></textarea>
+  <button class="primary" id="saveBtn">Save Word</button>
+</div>
+
+<!-- MANAGE PAGE -->
+<div class="page" id="page-manage">
+  <ul class="word-list" id="wordList"></ul>
+</div>
+
+<script>
+const STORAGE_KEY = "hebrewFlashcards";
+let words = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+let deck = [...words];
+let current = 0;
+let showNiqqud = true;
+let scriptMode = false;
+let revealed = false;
+let starOnly = false;
+
+// track which field was last auto-filled by translation, so we don't fight the user's own typing
+let hebAutofilled = false;
+let engAutofilled = false;
+
+// ---- Transliteration (approximate, rule-based) ----
+const CONSONANTS = {
+  'א':'','ב':'v','ג':'g','ד':'d','ה':'h','ו':'v','ז':'z','ח':'ch','ט':'t',
+  'י':'y','כ':'kh','ך':'kh','ל':'l','מ':'m','ם':'m','נ':'n','ן':'n','ס':'s',
+  'ע':'','פ':'f','ף':'f','צ':'tz','ץ':'tz','ק':'k','ר':'r','ש':'sh','ת':'t'
+};
+const NIQQUD = {
+  '\u05B0':'', '\u05B1':'e','\u05B2':'a','\u05B3':'o','\u05B4':'i','\u05B5':'e',
+  '\u05B6':'e','\u05B7':'a','\u05B8':'a','\u05B9':'o','\u05BA':'o','\u05BB':'u',
+  '\u05BC':'', '\u05C1':'','\u05C2':'','\u05C7':''
+};
+function transliterate(heb){
+  let out = "";
+  for(const ch of heb){
+    if(CONSONANTS[ch]!==undefined) out += CONSONANTS[ch];
+    else if(NIQQUD[ch]!==undefined) out += NIQQUD[ch];
+    else if(ch===' ') out += ' ';
+  }
+  return out || "";
+}
+function guessGender(heb){
+  const stripped = stripNiqqud(heb).trim();
+  if(/ה$/.test(stripped) || /ת$/.test(stripped)) return 'f';
+  return 'm';
+}
+function stripNiqqud(str){
+  return str.replace(/[\u0591-\u05C7]/g,"");
+}
+function isHebrewText(str){
+  return /[\u0590-\u05FF]/.test(str);
+}
+
+// ---- Free translation via MyMemory API ----
+async function translateText(text, from, to){
+  if(!text.trim()) return "";
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data?.responseData?.translatedText || "";
+}
+
+let debounceTimer = null;
+const hebInput = document.getElementById('inHeb');
+const engInput = document.getElementById('inEng');
+const hebStatus = document.getElementById('hebStatus');
+const engStatus = document.getElementById('engStatus');
+
+hebInput.addEventListener('input', ()=>{
+  document.getElementById('inTranslit').value = transliterate(hebInput.value);
+  document.getElementById('inGender').value = guessGender(hebInput.value);
+  hebAutofilled = false; // user is typing Hebrew themselves
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async ()=>{
+    const val = hebInput.value.trim();
+    if(!val) { engStatus.textContent=''; return; }
+    engStatus.textContent = 'Translating…';
+    try{
+      const translated = await translateText(val, 'he', 'en');
+      if(translated){
+        engInput.value = translated;
+        engAutofilled = true;
+        engStatus.textContent = 'Auto-filled from Hebrew (check it!)';
+      } else {
+        engStatus.textContent = 'Could not auto-translate — enter manually.';
+      }
+    }catch(e){
+      engStatus.textContent = 'Translation unavailable — enter manually.';
+    }
+  }, 700);
+});
+
+engInput.addEventListener('input', ()=>{
+  engAutofilled = false; // user is typing English themselves
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async ()=>{
+    const val = engInput.value.trim();
+    if(!val) { hebStatus.textContent=''; return; }
+    hebStatus.textContent = 'Translating…';
+    try{
+      const translated = await translateText(val, 'en', 'he');
+      if(translated){
+        hebInput.value = translated;
+        hebAutofilled = true;
+        document.getElementById('inTranslit').value = transliterate(translated);
+        document.getElementById('inGender').value = guessGender(translated);
+        hebStatus.textContent = 'Auto-filled from English (check it!)';
+      } else {
+        hebStatus.textContent = 'Could not auto-translate — enter manually.';
+      }
+    }catch(e){
+      hebStatus.textContent = 'Translation unavailable — enter manually.';
+    }
+  }, 700);
+});
+
+// ---- Navigation ----
+document.querySelectorAll('header button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('header button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-'+btn.dataset.page).classList.add('active');
+    if(btn.dataset.page==='manage') renderManage();
+    if(btn.dataset.page==='practice') renderCard();
+  });
+});
+
+// ---- Save word ----
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  const heb = hebInput.value.trim();
+  const eng = engInput.value.trim();
+  if(!heb || !eng){ alert("Please fill in both the Hebrew and English fields."); return; }
+  const word = {
+    id: Date.now(),
+    heb, eng,
+    translit: document.getElementById('inTranslit').value.trim(),
+    gender: document.getElementById('inGender').value,
+    sentence: document.getElementById('inSentence').value.trim(),
+    starred: false
+  };
+  words.push(word);
+  save();
+  deck = starOnly ? words.filter(w=>w.starred) : [...words];
+  current = deck.length-1;
+  hebInput.value='';
+  engInput.value='';
+  document.getElementById('inTranslit').value='';
+  document.getElementById('inSentence').value='';
+  hebStatus.textContent=''; engStatus.textContent='';
+  alert("Saved! Go to Practice to review it.");
+});
+
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(words)); }
+
+// ---- Manage list ----
+function renderManage(){
+  const list = document.getElementById('wordList');
+  list.innerHTML = '';
+  if(words.length===0){ list.innerHTML = '<div class="empty">No words yet.</div>'; return; }
+  words.forEach(w=>{
+    const li = document.createElement('li');
+    li.innerHTML = `<span dir="rtl">${w.heb} — ${w.eng}</span>`;
+    const del = document.createElement('button');
+    del.textContent = 'Delete';
+    del.addEventListener('click', ()=>{
+      words = words.filter(x=>x.id!==w.id);
+      save();
+      deck = starOnly ? words.filter(x=>x.starred) : [...words];
+      current = 0;
+      renderManage();
+    });
+    li.appendChild(del);
+    list.appendChild(li);
+  });
+}
+
+// ---- Practice / Card rendering ----
+function displayHeb(heb){
+  return showNiqqud ? heb : stripNiqqud(heb);
+}
+function boldSentence(sentence, heb){
+  if(!sentence) return "";
+  const bare = stripNiqqud(heb).trim();
+  const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re = new RegExp(escaped,"g");
+  const shownSentence = showNiqqud ? sentence : stripNiqqud(sentence);
+  return shownSentence.replace(re, m=>`<b>${m}</b>`);
+}
+
+function renderCard(){
+  const wrap = document.getElementById('cardWrap');
+  wrap.innerHTML = '';
+  if(deck.length===0){
+    wrap.innerHTML = '<div class="empty" id="emptyMsg">No words to show. Add some, or turn off ★ Only.</div>';
+    return;
+  }
+  if(current>=deck.length) current = 0;
+  if(current<0) current = deck.length-1;
+  const w = deck[current];
+  revealed = false;
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  const emoji = w.gender==='m' ? '👨' : w.gender==='f' ? '👩' : '';
+  card.innerHTML = `
+    <div class="gender">${emoji}</div>
+    <div class="heb-word ${scriptMode?'script':''}">${displayHeb(w.heb)}</div>
+    <div class="sentence">${boldSentence(w.sentence, w.heb)}</div>
+    <div class="reveal" id="revealArea"></div>
+  `;
+  card.addEventListener('click', ()=>{
+    revealed = !revealed;
+    renderReveal(w);
+  });
+  wrap.appendChild(card);
+  attachSwipe(card);
+  updateStarBtn(w);
+}
+
+function renderReveal(w){
+  const area = document.getElementById('revealArea');
+  if(!revealed){ area.innerHTML=''; return; }
+  area.innerHTML = `
+    <div class="eng">${w.eng}</div>
+    <div class="translit">${w.translit}</div>
+    <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
+  `;
+  document.getElementById('speakBtn').addEventListener('click', e=>{
+    e.stopPropagation();
+    speak(w.heb);
+  });
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)){ alert('Speech not supported on this device.'); return; }
+  const utter = new SpeechSynthesisUtterance(stripNiqqud(text));
+  utter.lang = 'he-IL';
+  speechSynthesis.cancel();
+  speechSynthesis.speak(utter);
+}
+
+function updateStarBtn(w){
+  const btn = document.getElementById('starBtn');
+  btn.classList.toggle('starred', !!w.starred);
+}
+
+// ---- Controls ----
+document.getElementById('toggleNiqqud').addEventListener('click', e=>{
+  showNiqqud = !showNiqqud;
+  e.target.textContent = showNiqqud ? 'Hide Dots' : 'Show Dots';
+  e.target.classList.toggle('on', !showNiqqud);
+  renderCard();
+});
+document.getElementById('toggleScript').addEventListener('click', e=>{
+  scriptMode = !scriptMode;
+  e.target.classList.toggle('on', scriptMode);
+  renderCard();
+});
+document.getElementById('filterStar').addEventListener('click', e=>{
+  starOnly = !starOnly;
+  e.target.classList.toggle('on', starOnly);
+  deck = starOnly ? words.filter(w=>w.starred) : [...words];
+  current = 0;
+  renderCard();
+});
+document.getElementById('skipBtn').addEventListener('click', ()=>{
+  current++;
+  renderCard();
+});
+document.getElementById('shuffleBtn').addEventListener('click', ()=>{
+  for(let i=deck.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]]=[deck[j],deck[i]];
+  }
+  current = 0;
+  renderCard();
+});
+document.getElementById('starBtn').addEventListener('click', ()=>{
+  if(deck.length===0) return;
+  const w = deck[current];
+  w.starred = !w.starred;
+  save();
+  updateStarBtn(w);
+});
+
+// ---- Swipe ----
+function attachSwipe(card){
+  let startX = 0;
+  card.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; });
+  card.addEventListener('touchend', e=>{
+    const dx = e.changedTouches[0].clientX - startX;
+    if(Math.abs(dx) > 60){
+      if(dx < 0) current++; else current--;
+      renderCard();
+    }
+  });
+}
+
+renderCard();
+</script>
+</body>
+</html>
