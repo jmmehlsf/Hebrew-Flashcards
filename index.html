@@ -21,9 +21,12 @@
   .row{display:flex;gap:8px;}
   .row>*{flex:1;}
   button.primary{margin-top:16px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#001522;font-weight:700;font-size:16px;}
-  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
   .toolbar button{flex:1;min-width:70px;padding:8px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:11px;}
   .toolbar button.on{background:var(--accent);color:#001522;font-weight:700;}
+  .direction-bar{display:flex;gap:8px;margin-bottom:14px;}
+  .direction-bar button{flex:1;padding:10px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:12px;font-weight:600;}
+  .direction-bar button.on{background:var(--accent);color:#001522;}
   .deck-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;}
   .deck-bar select{flex:1;}
   .card-wrap{position:relative;height:340px;touch-action:pan-y;}
@@ -84,11 +87,14 @@
 <div class="page active" id="page-practice">
   <div class="sync-banner sync-ok" id="syncBanner">Connecting…</div>
   <div class="deck-bar"><select id="deckFilter"></select></div>
+  <div class="direction-bar">
+    <button id="dirHebFirst" class="on">🇮🇱 Hebrew First</button>
+    <button id="dirEngFirst">🇬🇧 English First</button>
+  </div>
   <div class="toolbar">
     <button id="toggleNiqqud">Hide Dots</button>
     <button id="toggleScript">Script</button>
     <button id="filterStar">★ Only</button>
-    <button id="toggleDirection">Start: HEB→ENG</button>
   </div>
   <div class="card-wrap" id="cardWrap"><div class="empty" id="emptyMsg">Loading…</div></div>
   <div class="nav-row">
@@ -188,7 +194,7 @@ let scriptMode = false;
 let revealed = false;
 let starOnly = false;
 let autoTranslate = false;
-let direction = 'h2e';
+let direction = 'h2e'; // 'h2e' = Hebrew First, 'e2h' = English First
 let activeDeckFilter = 'ALL';
 
 const syncBanner = document.getElementById('syncBanner');
@@ -293,8 +299,8 @@ document.querySelectorAll('header button').forEach(btn=>{
 function refreshDeckDropdowns(){
   inDeckEl.innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
   const prevVal = deckFilterEl.value || 'ALL';
-  deckFilterEl.innerHTML = `<option value="ALL">All Decks</option>` + decks.map(d=>`<option value="${d}">${d}</option>`).join('');
-  deckFilterEl.value = decks.includes(prevVal) || prevVal==='ALL' ? prevVal : 'ALL';
+  deckFilterEl.innerHTML = `<option value="ALL">General (All Cards)</option>` + decks.filter(d=>d!==DEFAULT_DECK).map(d=>`<option value="${d}">${d}</option>`).join('');
+  deckFilterEl.value = (prevVal==='ALL' || decks.includes(prevVal)) ? prevVal : 'ALL';
   activeDeckFilter = deckFilterEl.value;
 }
 deckFilterEl.addEventListener('change', ()=>{ activeDeckFilter = deckFilterEl.value; rebuildDeckQueue(); });
@@ -472,10 +478,17 @@ document.getElementById('filterStar').addEventListener('click', e=>{
   e.target.classList.toggle('on', starOnly);
   rebuildDeckQueue();
 });
-document.getElementById('toggleDirection').addEventListener('click', e=>{
-  direction = direction === 'h2e' ? 'e2h' : 'h2e';
-  e.target.textContent = direction === 'h2e' ? 'Start: HEB→ENG' : 'Start: ENG→HEB';
-  e.target.classList.toggle('on', direction === 'e2h');
+
+document.getElementById('dirHebFirst').addEventListener('click', ()=>{
+  direction = 'h2e';
+  document.getElementById('dirHebFirst').classList.add('on');
+  document.getElementById('dirEngFirst').classList.remove('on');
+  renderCard();
+});
+document.getElementById('dirEngFirst').addEventListener('click', ()=>{
+  direction = 'e2h';
+  document.getElementById('dirEngFirst').classList.add('on');
+  document.getElementById('dirHebFirst').classList.remove('on');
   renderCard();
 });
 
