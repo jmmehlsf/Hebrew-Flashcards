@@ -63,6 +63,7 @@
   .field-row{display:flex;gap:8px;align-items:flex-end;}
   .field-row input{flex:1;}
   .translate-btn{white-space:nowrap;padding:10px 12px;border-radius:8px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:13px;}
+  .translate-btn.listening{background:#ff5c5c;border-color:#ff5c5c;color:#fff;}
   .toggle-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;background:#181b22;padding:10px;border-radius:10px;}
   .toggle-row input{width:auto;}
   .toggle-row label{margin:0;font-size:13px;color:var(--text);}
@@ -151,8 +152,10 @@
   <label>Hebrew word or sentence</label>
   <div class="field-row">
     <input id="inHeb" placeholder="שָׁלוֹם" dir="rtl">
+    <button class="translate-btn" id="voiceHebBtn">🎤</button>
     <button class="translate-btn" id="manualTranslateToEng">Translate →</button>
   </div>
+  <div class="status" id="voiceHebStatus"></div>
   <div class="status" id="hebStatus"></div>
   <label>English meaning</label>
   <div class="field-row">
@@ -175,7 +178,11 @@
     </div>
   </div>
   <label>Example sentence (Hebrew, optional)</label>
-  <textarea id="inSentence" dir="rtl" placeholder="אֲנִי אוֹמֵר שָׁלוֹם"></textarea>
+  <div class="field-row">
+    <textarea id="inSentence" dir="rtl" placeholder="אֲנִי אוֹמֵר שָׁלוֹם"></textarea>
+    <button class="translate-btn" id="voiceSentenceBtn">🎤</button>
+  </div>
+  <div class="status" id="voiceSentenceStatus"></div>
   <button class="primary" id="saveBtn">Save Word</button>
 </div>
 
@@ -335,6 +342,39 @@ async function runTranslate(dir){
     }catch(e){ hebStatus.textContent='Translation unavailable — enter manually.'; }
   }
 }
+// ---- Hebrew voice to text ----
+function startHebrewDictation(targetEl, statusEl, btnEl){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ alert("Voice input isn't supported in this browser. On iPhone, tap the microphone on your keyboard instead to dictate in Hebrew."); return; }
+  const rec = new SR();
+  rec.lang = 'he-IL';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  statusEl.textContent = 'Listening… speak in Hebrew';
+  btnEl.classList.add('listening');
+  btnEl.textContent = '🔴';
+  rec.onresult = (e)=>{
+    const transcript = e.results[0][0].transcript.trim();
+    targetEl.value = transcript;
+    targetEl.dispatchEvent(new Event('input'));
+    statusEl.textContent = 'Heard you — check and edit if needed.';
+    btnEl.classList.remove('listening');
+    btnEl.textContent = '🎤';
+  };
+  rec.onerror = ()=>{
+    statusEl.textContent = 'Could not hear – try again.';
+    btnEl.classList.remove('listening');
+    btnEl.textContent = '🎤';
+  };
+  rec.onend = ()=>{ btnEl.classList.remove('listening'); if(btnEl.textContent==='🔴') btnEl.textContent='🎤'; };
+  try{ rec.start(); }catch(err){ statusEl.textContent = 'Voice busy – try again.'; btnEl.classList.remove('listening'); btnEl.textContent='🎤'; }
+}
+document.getElementById('voiceHebBtn').addEventListener('click', ()=>{
+  startHebrewDictation(hebInput, document.getElementById('voiceHebStatus'), document.getElementById('voiceHebBtn'));
+});
+document.getElementById('voiceSentenceBtn').addEventListener('click', ()=>{
+  startHebrewDictation(document.getElementById('inSentence'), document.getElementById('voiceSentenceStatus'), document.getElementById('voiceSentenceBtn'));
+});
 document.querySelectorAll('header button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('header button').forEach(b=>b.classList.remove('active'));
@@ -407,6 +447,8 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   document.getElementById('inTranslit').value='';
   document.getElementById('inSentence').value='';
   hebStatus.textContent=''; engStatus.textContent='';
+  document.getElementById('voiceHebStatus').textContent='';
+  document.getElementById('voiceSentenceStatus').textContent='';
   alert("Saved! Everyone using this link will see it too.");
 });
 function renderManage(){
