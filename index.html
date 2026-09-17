@@ -82,6 +82,24 @@
   .modal-actions button{flex:1;padding:12px 0;border-radius:10px;border:none;font-weight:700;}
   .modal-save{background:var(--accent);color:#001522;}
   .modal-cancel{background:#2a2d36;color:var(--text);}
+  #printArea{display:none;}
+  @media print{
+    header, .page, .modal-overlay{display:none !important;}
+    body{background:#fff;}
+    #printArea{display:block !important;color:#000;}
+    .print-instructions{font-size:12pt;margin-bottom:10px;color:#000;}
+    .print-page{page-break-after:always;break-after:page;}
+    .print-label{font-size:10pt;color:#000;margin-bottom:6px;}
+    .print-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(4, 2.2in);gap:0;}
+    .p-card{border:1px dashed #000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0.2in;overflow:hidden;background:#fff !important;color:#000 !important;}
+    .p-front{direction:rtl;}
+    .p-heb{font-size:28pt;font-weight:700;}
+    .p-sent{font-size:11pt;margin-top:6pt;}
+    .p-back{direction:ltr;}
+    .p-eng{font-size:16pt;font-weight:700;}
+    .p-translit{font-size:11pt;margin-top:4pt;}
+    .p-empty{border:1px dashed #aaa;}
+  }
 </style>
 </head>
 <body>
@@ -104,6 +122,7 @@
     <button id="toggleNiqqud">Hide Dots</button>
     <button id="toggleScript">Script</button>
     <button id="filterStar">★ Only</button>
+    <button id="printBtn">🖨️ Print</button>
   </div>
   <div class="card-wrap" id="cardWrap"><div class="empty" id="emptyMsg">Loading…</div></div>
   <div class="nav-row">
@@ -123,29 +142,24 @@
 <div class="page" id="page-add">
   <label>Your name (shown as who added the word — optional)</label>
   <input id="inAddedBy" placeholder="e.g. Jordan">
-
   <div class="toggle-row">
     <input type="checkbox" id="autoTranslateToggle">
     <label for="autoTranslateToggle">Auto-translate as I type</label>
   </div>
-
   <label>Deck</label>
   <select id="inDeck"></select>
-
   <label>Hebrew word or sentence</label>
   <div class="field-row">
     <input id="inHeb" placeholder="שָׁלוֹם" dir="rtl">
     <button class="translate-btn" id="manualTranslateToEng">Translate →</button>
   </div>
   <div class="status" id="hebStatus"></div>
-
   <label>English meaning</label>
   <div class="field-row">
     <input id="inEng" placeholder="hello / peace">
     <button class="translate-btn" id="manualTranslateToHeb">← Translate</button>
   </div>
   <div class="status" id="engStatus"></div>
-
   <div class="row">
     <div>
       <label>Transliteration (auto-guessed, editable)</label>
@@ -178,7 +192,8 @@
   <ul class="word-list" id="wordList"></ul>
 </div>
 
-<!-- EDIT MODAL -->
+<div id="printArea"></div>
+
 <div class="modal-overlay" id="editModal">
   <div class="modal-box">
     <h3>Edit Word</h3>
@@ -207,7 +222,6 @@
 
 <script>
 const EDIT_PASSCODE = "613";
-
 const firebaseConfig = {
   apiKey: "AIzaSyChe-jqMqtme1qTdsQKtr4SRffzCXUDgl0",
   authDomain: "h-flash-cards.firebaseapp.com",
@@ -217,13 +231,11 @@ const firebaseConfig = {
   appId: "1:977013443652:web:81d75c6452e4cd4b230011",
   measurementId: "G-G3TQ1G96PT"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const wordsCol = db.collection("words");
 const decksCol = db.collection("decks");
 const DEFAULT_DECK = "General";
-
 let words = [];
 let decks = [DEFAULT_DECK];
 let deckQueue = [];
@@ -236,9 +248,7 @@ let autoTranslate = false;
 let direction = 'h2e';
 let activeDeckFilter = 'ALL';
 let editingWordId = null;
-
 const syncBanner = document.getElementById('syncBanner');
-
 function checkPasscode(){
   if(sessionStorage.getItem('editUnlocked') === 'true') return true;
   const entered = prompt("Enter the class passcode to add, edit, or delete:");
@@ -250,13 +260,11 @@ function checkPasscode(){
   alert("Incorrect passcode.");
   return false;
 }
-
 const NAME_KEY = "hebrewFlashcards_myName";
 document.getElementById('inAddedBy').value = localStorage.getItem(NAME_KEY) || "";
 document.getElementById('inAddedBy').addEventListener('input', e=>{
   localStorage.setItem(NAME_KEY, e.target.value);
 });
-
 wordsCol.onSnapshot(snap=>{
   words = snap.docs.map(d=>({ id:d.id, ...d.data() }));
   syncBanner.textContent = "✓ Synced — shared with everyone using this link";
@@ -268,20 +276,17 @@ wordsCol.onSnapshot(snap=>{
   syncBanner.className = "sync-banner sync-bad";
   console.error(err);
 });
-
 decksCol.onSnapshot(snap=>{
   const fetched = snap.docs.map(d=>d.data().name);
   decks = [DEFAULT_DECK, ...fetched.filter(n=>n!==DEFAULT_DECK)];
   refreshDeckDropdowns();
   if(document.getElementById('page-decks').classList.contains('active')) renderDecks();
 });
-
 const CONSONANTS = {'א':'','ב':'v','ג':'g','ד':'d','ה':'h','ו':'v','ז':'z','ח':'ch','ט':'t','י':'y','כ':'kh','ך':'kh','ל':'l','מ':'m','ם':'m','נ':'n','ן':'n','ס':'s','ע':'','פ':'f','ף':'f','צ':'tz','ץ':'tz','ק':'k','ר':'r','ש':'sh','ת':'t'};
 const NIQQUD = {'\u05B0':'','\u05B1':'e','\u05B2':'a','\u05B3':'o','\u05B4':'i','\u05B5':'e','\u05B6':'e','\u05B7':'a','\u05B8':'a','\u05B9':'o','\u05BA':'o','\u05BB':'u','\u05BC':'','\u05C1':'','\u05C2':'','\u05C7':''};
 function transliterate(heb){ let out=""; for(const ch of heb){ if(CONSONANTS[ch]!==undefined) out+=CONSONANTS[ch]; else if(NIQQUD[ch]!==undefined) out+=NIQQUD[ch]; else if(ch===' ') out+=' '; } return out||""; }
 function guessGender(heb){ const s=stripNiqqud(heb).trim(); if(/ה$/.test(s)||/ת$/.test(s)) return 'f'; return 'm'; }
 function stripNiqqud(str){ return str.replace(/[\u0591-\u05C7]/g,""); }
-
 async function translateText(text, from, to){
   if(!text.trim()) return "";
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
@@ -289,7 +294,6 @@ async function translateText(text, from, to){
   const data = await res.json();
   return data?.responseData?.translatedText || "";
 }
-
 const hebInput = document.getElementById('inHeb');
 const engInput = document.getElementById('inEng');
 const hebStatus = document.getElementById('hebStatus');
@@ -297,9 +301,7 @@ const engStatus = document.getElementById('engStatus');
 const autoToggle = document.getElementById('autoTranslateToggle');
 const deckFilterEl = document.getElementById('deckFilter');
 const inDeckEl = document.getElementById('inDeck');
-
 autoToggle.addEventListener('change', ()=>{ autoTranslate = autoToggle.checked; });
-
 let debounceTimer = null;
 hebInput.addEventListener('input', ()=>{
   document.getElementById('inTranslit').value = transliterate(hebInput.value);
@@ -315,7 +317,6 @@ engInput.addEventListener('input', ()=>{
 });
 document.getElementById('manualTranslateToEng').addEventListener('click', ()=> runTranslate('heb-to-eng'));
 document.getElementById('manualTranslateToHeb').addEventListener('click', ()=> runTranslate('eng-to-heb'));
-
 async function runTranslate(dir){
   if(dir==='heb-to-eng'){
     const val = hebInput.value.trim();
@@ -334,7 +335,6 @@ async function runTranslate(dir){
     }catch(e){ hebStatus.textContent='Translation unavailable — enter manually.'; }
   }
 }
-
 document.querySelectorAll('header button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('header button').forEach(b=>b.classList.remove('active'));
@@ -347,7 +347,6 @@ document.querySelectorAll('header button').forEach(btn=>{
     if(btn.dataset.page==='practice') rebuildDeckQueue();
   });
 });
-
 function refreshDeckDropdowns(){
   inDeckEl.innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
   document.getElementById('editDeck').innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
@@ -357,7 +356,6 @@ function refreshDeckDropdowns(){
   activeDeckFilter = deckFilterEl.value;
 }
 deckFilterEl.addEventListener('change', ()=>{ activeDeckFilter = deckFilterEl.value; rebuildDeckQueue(); });
-
 document.getElementById('addDeckBtn').addEventListener('click', async ()=>{
   if(!checkPasscode()) return;
   const name = document.getElementById('newDeckName').value.trim();
@@ -366,7 +364,6 @@ document.getElementById('addDeckBtn').addEventListener('click', async ()=>{
   await decksCol.add({ name });
   document.getElementById('newDeckName').value = '';
 });
-
 function renderDecks(){
   const list = document.getElementById('deckList');
   list.innerHTML = '';
@@ -390,7 +387,6 @@ function renderDecks(){
     list.appendChild(li);
   });
 }
-
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
   if(!checkPasscode()) return;
   const heb = hebInput.value.trim();
@@ -413,7 +409,6 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   hebStatus.textContent=''; engStatus.textContent='';
   alert("Saved! Everyone using this link will see it too.");
 });
-
 function renderManage(){
   const list = document.getElementById('wordList');
   list.innerHTML = '';
@@ -431,7 +426,6 @@ function renderManage(){
     list.appendChild(li);
   });
 }
-
 function rebuildDeckQueue(){
   let source = words;
   if(activeDeckFilter !== 'ALL') source = source.filter(w=>w.deck===activeDeckFilter);
@@ -440,7 +434,6 @@ function rebuildDeckQueue(){
   current = 0;
   renderCard();
 }
-
 function displayHeb(heb){ return showNiqqud ? heb : stripNiqqud(heb); }
 function boldSentence(sentence, heb){
   if(!sentence) return "";
@@ -450,7 +443,6 @@ function boldSentence(sentence, heb){
   const shownSentence = showNiqqud ? sentence : stripNiqqud(sentence);
   return shownSentence.replace(re, m=>`<b>${m}</b>`);
 }
-
 function renderCard(){
   const wrap = document.getElementById('cardWrap');
   wrap.innerHTML = '';
@@ -462,55 +454,31 @@ function renderCard(){
   if(current<0) current = deckQueue.length-1;
   const w = deckQueue[current];
   revealed = false;
-
   const card = document.createElement('div');
   card.className = 'card';
   const emoji = w.gender==='m' ? '👨' : w.gender==='f' ? '👩' : '';
-
   let frontHTML = '';
   if(direction === 'h2e'){
-    frontHTML = `
-      <div class="gender">${emoji}</div>
-      <div class="front-word heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div>
-      <div class="sentence">${boldSentence(w.sentence, w.heb)}</div>
-    `;
+    frontHTML = `<div class="gender">${emoji}</div><div class="front-word heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div><div class="sentence">${boldSentence(w.sentence, w.heb)}</div>`;
   } else {
-    frontHTML = `
-      <div class="gender">${emoji}</div>
-      <div class="front-word">${w.eng}</div>
-      <div class="hint">tap or press Flip to reveal Hebrew</div>
-    `;
+    frontHTML = `<div class="gender">${emoji}</div><div class="front-word">${w.eng}</div><div class="hint">tap or press Flip to reveal Hebrew</div>`;
   }
-
   card.innerHTML = frontHTML + `<div class="reveal" id="revealArea"></div>`;
   card.addEventListener('click', ()=>{ revealed = !revealed; renderReveal(w); });
   wrap.appendChild(card);
   attachSwipe(card);
   updateStarBtn(w);
 }
-
 function renderReveal(w){
   const area = document.getElementById('revealArea');
   if(!revealed){ area.innerHTML=''; return; }
   if(direction === 'h2e'){
-    area.innerHTML = `
-      <div class="big">${w.eng}</div>
-      <div class="translit">${w.translit}</div>
-      <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
-      <div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>
-    `;
+    area.innerHTML = `<div class="big">${w.eng}</div><div class="translit">${w.translit}</div><button class="speak-btn" id="speakBtn">🔊 Hear it</button><div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>`;
   } else {
-    area.innerHTML = `
-      <div class="big heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div>
-      <div class="translit">${w.translit}</div>
-      ${w.sentence ? `<div class="backSentence">${boldSentence(w.sentence, w.heb)}</div>` : ''}
-      <button class="speak-btn" id="speakBtn">🔊 Hear it</button>
-      <div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>
-    `;
+    area.innerHTML = `<div class="big heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div><div class="translit">${w.translit}</div>${w.sentence ? `<div class="backSentence">${boldSentence(w.sentence, w.heb)}</div>` : ''}<button class="speak-btn" id="speakBtn">🔊 Hear it</button><div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>`;
   }
   document.getElementById('speakBtn').addEventListener('click', e=>{ e.stopPropagation(); speak(w.heb); });
 }
-
 function speak(text){
   if(!('speechSynthesis' in window)){ alert('Speech not supported on this device.'); return; }
   const utter = new SpeechSynthesisUtterance(stripNiqqud(text));
@@ -518,9 +486,7 @@ function speak(text){
   speechSynthesis.cancel();
   speechSynthesis.speak(utter);
 }
-
 function updateStarBtn(w){ document.getElementById('starBtn').classList.toggle('starred', !!w.starred); }
-
 document.getElementById('toggleNiqqud').addEventListener('click', e=>{
   showNiqqud = !showNiqqud;
   e.target.textContent = showNiqqud ? 'Hide Dots' : 'Show Dots';
@@ -537,7 +503,6 @@ document.getElementById('filterStar').addEventListener('click', e=>{
   e.target.classList.toggle('on', starOnly);
   rebuildDeckQueue();
 });
-
 document.getElementById('dirHebFirst').addEventListener('click', ()=>{
   direction = 'h2e';
   document.getElementById('dirHebFirst').classList.add('on');
@@ -550,7 +515,6 @@ document.getElementById('dirEngFirst').addEventListener('click', ()=>{
   document.getElementById('dirHebFirst').classList.remove('on');
   renderCard();
 });
-
 document.getElementById('prevBtn').addEventListener('click', ()=>{ current--; renderCard(); });
 document.getElementById('nextBtn').addEventListener('click', ()=>{ current++; renderCard(); });
 document.getElementById('flipBtn').addEventListener('click', ()=>{
@@ -558,7 +522,6 @@ document.getElementById('flipBtn').addEventListener('click', ()=>{
   revealed = !revealed;
   renderReveal(deckQueue[current]);
 });
-
 document.getElementById('skipBtn').addEventListener('click', ()=>{ current++; renderCard(); });
 document.getElementById('shuffleBtn').addEventListener('click', ()=>{
   for(let i=deckQueue.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [deckQueue[i],deckQueue[j]]=[deckQueue[j],deckQueue[i]]; }
@@ -570,7 +533,6 @@ document.getElementById('starBtn').addEventListener('click', async ()=>{
   const w = deckQueue[current];
   await wordsCol.doc(w.id).update({ starred: !w.starred });
 });
-
 document.getElementById('editCardBtn').addEventListener('click', ()=>{
   if(deckQueue.length===0) return;
   if(!checkPasscode()) return;
@@ -603,7 +565,6 @@ document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
   document.getElementById('editModal').classList.remove('show');
   editingWordId = null;
 });
-
 function attachSwipe(card){
   let startX = 0;
   card.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; });
@@ -612,6 +573,42 @@ function attachSwipe(card){
     if(Math.abs(dx) > 60){ if(dx < 0) current++; else current--; renderCard(); }
   });
 }
+function getPrintWords(){
+  let source = words;
+  if(activeDeckFilter !== 'ALL') source = source.filter(w=>w.deck===activeDeckFilter);
+  if(starOnly) source = source.filter(w=>w.starred);
+  return source;
+}
+function buildPrint(){
+  const src = getPrintWords();
+  const area = document.getElementById('printArea');
+  if(src.length===0){ alert("No cards to print in this deck/filter."); area.innerHTML=''; return; }
+  let html = `<div class="print-instructions">Print double-sided • Flip on long edge • ${src.length} cards • Deck: ${activeDeckFilter==='ALL'?'General (All Cards)':activeDeckFilter}</div>`;
+  const PER_PAGE = 8;
+  for(let i=0;i<src.length;i+=PER_PAGE){
+    const chunk = src.slice(i,i+PER_PAGE);
+    html += `<div class="print-page"><div class="print-label">FRONT — Hebrew (cards ${i+1}-${i+chunk.length}) — cut along lines</div><div class="print-grid">`;
+    chunk.forEach(w=>{ html += `<div class="p-card p-front"><div class="p-heb">${displayHeb(w.heb)}</div>${w.sentence?`<div class="p-sent">${displayHeb(w.sentence)}</div>`:''}</div>`; });
+    for(let k=chunk.length;k<PER_PAGE;k++) html+=`<div class="p-card p-empty"></div>`;
+    html += `</div></div>`;
+    let mirrored=[];
+    for(let r=0;r<chunk.length;r+=2){
+      if(r+1<chunk.length){ mirrored.push(chunk[r+1]); mirrored.push(chunk[r]); }
+      else mirrored.push(chunk[r]);
+    }
+    html += `<div class="print-page"><div class="print-label">BACK — English (flip on long edge)</div><div class="print-grid">`;
+    mirrored.forEach(w=>{ html += `<div class="p-card p-back"><div class="p-eng">${w.eng}</div><div class="p-translit">${w.translit||''}</div></div>`; });
+    for(let k=chunk.length;k<PER_PAGE;k++) html+=`<div class="p-card p-empty"></div>`;
+    html += `</div></div>`;
+  }
+  area.innerHTML = html;
+}
+document.getElementById('printBtn').addEventListener('click', ()=>{
+  const ok = confirm("To print double-sided:\n\nChoose Double-sided / Two-sided and choose Flip on long edge.\n\nFront = Hebrew, Back = English.\n\nPress OK to continue to print.");
+  if(!ok) return;
+  buildPrint();
+  setTimeout(()=>window.print(),150);
+});
 </script>
 </body>
 </html>
