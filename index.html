@@ -342,7 +342,6 @@ async function runTranslate(dir){
     }catch(e){ hebStatus.textContent='Translation unavailable — enter manually.'; }
   }
 }
-// ---- Hebrew voice to text ----
 function startHebrewDictation(targetEl, statusEl, btnEl){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if(!SR){ alert("Voice input isn't supported in this browser. On iPhone, tap the microphone on your keyboard instead to dictate in Hebrew."); return; }
@@ -639,7 +638,7 @@ function buildPrint(){
       else mirrored.push(chunk[r]);
     }
     html += `<div class="print-page"><div class="print-label">BACK — English (flip on long edge)</div><div class="print-grid">`;
-    mirrored.forEach(w=>{ html += `<div class="p-card p-back"><div class="p-eng">${w.eng}</div><div class="p-translit">${w.translit||''}</div></div>`; });
+    mirrored.forEach(w=>{ html += `<div class="p-card p-back"><div class="p-eng">${w.eng}</div></div>`; });
     for(let k=chunk.length;k<PER_PAGE;k++) html+=`<div class="p-card p-empty"></div>`;
     html += `</div></div>`;
   }
