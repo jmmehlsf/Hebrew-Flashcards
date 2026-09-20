@@ -18,8 +18,6 @@
   label{display:block;margin:12px 0 4px;font-size:13px;color:var(--muted);}
   input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #333;background:#0e1015;color:var(--text);font-size:16px;}
   textarea{resize:vertical;min-height:50px;}
-  .row{display:flex;gap:8px;}
-  .row>*{flex:1;}
   button.primary{margin-top:16px;width:100%;padding:12px;border:none;border-radius:10px;background:var(--accent);color:#001522;font-weight:700;font-size:16px;}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
   .toolbar button{flex:1;min-width:70px;padding:8px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:11px;}
@@ -31,7 +29,6 @@
   .deck-bar select{flex:1;}
   .card-wrap{position:relative;height:340px;touch-action:pan-y;}
   .card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4);}
-  .gender{font-size:26px;margin-bottom:6px;}
   .front-word{font-size:52px;font-weight:700;line-height:1.2;}
   .front-word.heb{direction:rtl;}
   .front-word.script{font-style:italic;font-family:"Times New Roman",serif;font-weight:400;}
@@ -98,7 +95,6 @@
     .p-sent{font-size:11pt;margin-top:6pt;}
     .p-back{direction:ltr;}
     .p-eng{font-size:16pt;font-weight:700;}
-    .p-translit{font-size:11pt;margin-top:4pt;}
     .p-empty{border:1px dashed #aaa;}
   }
 </style>
@@ -163,20 +159,8 @@
     <button class="translate-btn" id="manualTranslateToHeb">← Translate</button>
   </div>
   <div class="status" id="engStatus"></div>
-  <div class="row">
-    <div>
-      <label>Transliteration (auto-guessed, editable)</label>
-      <input id="inTranslit" placeholder="shalom">
-    </div>
-    <div>
-      <label>Gender</label>
-      <select id="inGender">
-        <option value="m">Masculine 👨</option>
-        <option value="f">Feminine 👩</option>
-        <option value="n">N/A</option>
-      </select>
-    </div>
-  </div>
+  <label>Transliteration (auto-guessed, editable)</label>
+  <input id="inTranslit" placeholder="shalom">
   <label>Example sentence (Hebrew, optional)</label>
   <div class="field-row">
     <textarea id="inSentence" dir="rtl" placeholder="אֲנִי אוֹמֵר שָׁלוֹם"></textarea>
@@ -210,12 +194,6 @@
     <input id="editEng">
     <label>Transliteration</label>
     <input id="editTranslit">
-    <label>Gender</label>
-    <select id="editGender">
-      <option value="m">Masculine 👨</option>
-      <option value="f">Feminine 👩</option>
-      <option value="n">N/A</option>
-    </select>
     <label>Deck</label>
     <select id="editDeck"></select>
     <label>Example sentence (Hebrew)</label>
@@ -292,7 +270,6 @@ decksCol.onSnapshot(snap=>{
 const CONSONANTS = {'א':'','ב':'v','ג':'g','ד':'d','ה':'h','ו':'v','ז':'z','ח':'ch','ט':'t','י':'y','כ':'kh','ך':'kh','ל':'l','מ':'m','ם':'m','נ':'n','ן':'n','ס':'s','ע':'','פ':'f','ף':'f','צ':'tz','ץ':'tz','ק':'k','ר':'r','ש':'sh','ת':'t'};
 const NIQQUD = {'\u05B0':'','\u05B1':'e','\u05B2':'a','\u05B3':'o','\u05B4':'i','\u05B5':'e','\u05B6':'e','\u05B7':'a','\u05B8':'a','\u05B9':'o','\u05BA':'o','\u05BB':'u','\u05BC':'','\u05C1':'','\u05C2':'','\u05C7':''};
 function transliterate(heb){ let out=""; for(const ch of heb){ if(CONSONANTS[ch]!==undefined) out+=CONSONANTS[ch]; else if(NIQQUD[ch]!==undefined) out+=NIQQUD[ch]; else if(ch===' ') out+=' '; } return out||""; }
-function guessGender(heb){ const s=stripNiqqud(heb).trim(); if(/ה$/.test(s)||/ת$/.test(s)) return 'f'; return 'm'; }
 function stripNiqqud(str){ return str.replace(/[\u0591-\u05C7]/g,""); }
 async function translateText(text, from, to){
   if(!text.trim()) return "";
@@ -312,7 +289,6 @@ autoToggle.addEventListener('change', ()=>{ autoTranslate = autoToggle.checked; 
 let debounceTimer = null;
 hebInput.addEventListener('input', ()=>{
   document.getElementById('inTranslit').value = transliterate(hebInput.value);
-  document.getElementById('inGender').value = guessGender(hebInput.value);
   if(!autoTranslate) return;
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(()=> runTranslate('heb-to-eng'), 700);
@@ -337,7 +313,7 @@ async function runTranslate(dir){
     hebStatus.textContent = 'Translating…';
     try{
       const t = await translateText(val,'en','he');
-      if(t){ hebInput.value=t; document.getElementById('inTranslit').value=transliterate(t); document.getElementById('inGender').value=guessGender(t); hebStatus.textContent='Translated from English (check it!)'; }
+      if(t){ hebInput.value=t; document.getElementById('inTranslit').value=transliterate(t); hebStatus.textContent='Translated from English (check it!)'; }
       else hebStatus.textContent='Could not translate — enter manually.';
     }catch(e){ hebStatus.textContent='Translation unavailable — enter manually.'; }
   }
@@ -434,7 +410,6 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const word = {
     heb, eng,
     translit: document.getElementById('inTranslit').value.trim(),
-    gender: document.getElementById('inGender').value,
     sentence: document.getElementById('inSentence').value.trim(),
     deck: inDeckEl.value || DEFAULT_DECK,
     starred: false,
@@ -497,12 +472,11 @@ function renderCard(){
   revealed = false;
   const card = document.createElement('div');
   card.className = 'card';
-  const emoji = w.gender==='m' ? '👨' : w.gender==='f' ? '👩' : '';
   let frontHTML = '';
   if(direction === 'h2e'){
-    frontHTML = `<div class="gender">${emoji}</div><div class="front-word heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div><div class="sentence">${boldSentence(w.sentence, w.heb)}</div>`;
+    frontHTML = `<div class="front-word heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div><div class="sentence">${boldSentence(w.sentence, w.heb)}</div>`;
   } else {
-    frontHTML = `<div class="gender">${emoji}</div><div class="front-word">${w.eng}</div><div class="hint">tap or press Flip to reveal Hebrew</div>`;
+    frontHTML = `<div class="front-word">${w.eng}</div><div class="hint">tap or press Flip to reveal Hebrew</div>`;
   }
   card.innerHTML = frontHTML + `<div class="reveal" id="revealArea"></div>`;
   card.addEventListener('click', ()=>{ revealed = !revealed; renderReveal(w); });
@@ -582,7 +556,6 @@ document.getElementById('editCardBtn').addEventListener('click', ()=>{
   document.getElementById('editHeb').value = w.heb || '';
   document.getElementById('editEng').value = w.eng || '';
   document.getElementById('editTranslit').value = w.translit || '';
-  document.getElementById('editGender').value = w.gender || 'n';
   document.getElementById('editDeck').value = w.deck || DEFAULT_DECK;
   document.getElementById('editSentence').value = w.sentence || '';
   document.getElementById('editModal').classList.add('show');
@@ -599,7 +572,6 @@ document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
   await wordsCol.doc(editingWordId).update({
     heb, eng,
     translit: document.getElementById('editTranslit').value.trim(),
-    gender: document.getElementById('editGender').value,
     deck: document.getElementById('editDeck').value,
     sentence: document.getElementById('editSentence').value.trim()
   });
