@@ -27,7 +27,16 @@
   .direction-bar button.on{background:var(--accent);color:#001522;}
   .deck-bar{display:flex;gap:8px;margin-bottom:6px;align-items:center;}
   .deck-bar select{flex:1;}
-  .card-counter{text-align:center;font-size:13px;color:var(--muted);margin-bottom:12px;font-weight:600;}
+  .card-counter{text-align:center;font-size:13px;color:var(--muted);margin-bottom:8px;font-weight:600;}
+  .timer-box{background:#181b22;border-radius:12px;padding:10px 12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .timer-info{display:flex;flex-direction:column;}
+  .timer-round{font-size:11px;color:var(--muted);}
+  .timer-clock{font-size:26px;font-weight:700;font-family:monospace;}
+  .timer-clock.warn{color:#ff5c5c;}
+  .timer-cards{font-size:12px;color:var(--accent);font-weight:600;margin-top:2px;}
+  .timer-btns{display:flex;gap:6px;}
+  .timer-btns button{padding:8px 12px;border-radius:8px;border:none;font-size:12px;font-weight:700;background:var(--accent);color:#001522;}
+  .timer-btns button.reset{background:#2a2d36;color:var(--text);}
   .card-wrap{position:relative;height:340px;touch-action:pan-y;}
   .card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4);}
   .front-word{font-size:52px;font-weight:700;line-height:1.2;}
@@ -113,6 +122,17 @@
   <div class="sync-banner sync-ok" id="syncBanner">Connecting…</div>
   <div class="deck-bar"><select id="deckFilter"></select></div>
   <div class="card-counter" id="cardCounter">0/0</div>
+  <div class="timer-box">
+    <div class="timer-info">
+      <div class="timer-round" id="timerRound">Round 1 · 7:00 goal</div>
+      <div class="timer-clock" id="timerClock">07:00</div>
+      <div class="timer-cards" id="timerCards">0 cards this round</div>
+    </div>
+    <div class="timer-btns">
+      <button id="timerStartBtn">Start</button>
+      <button class="reset" id="timerResetBtn">Reset</button>
+    </div>
+  </div>
   <div class="direction-bar">
     <button id="dirHebFirst" class="on">🇮🇱 Hebrew First</button>
     <button id="dirEngFirst">🇬🇧 English First</button>
@@ -243,6 +263,77 @@ let activeDeckFilter = 'ALL';
 let editingWordId = null;
 const syncBanner = document.getElementById('syncBanner');
 const cardCounterEl = document.getElementById('cardCounter');
+
+// ---- Practice Timer + Cards This Round ----
+let timerRoundNum = 1;
+let timerGoalSeconds = 7*60;
+let timerSecondsLeft = timerGoalSeconds;
+let timerInterval = null;
+let timerRunning = false;
+let cardsThisRound = 0;
+const timerClockEl = document.getElementById('timerClock');
+const timerRoundEl = document.getElementById('timerRound');
+const timerCardsEl = document.getElementById('timerCards');
+const timerStartBtn = document.getElementById('timerStartBtn');
+const timerResetBtn = document.getElementById('timerResetBtn');
+function formatTime(sec){
+  const m = Math.floor(sec/60);
+  const s = sec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function renderTimer(){
+  timerClockEl.textContent = formatTime(timerSecondsLeft);
+  timerRoundEl.textContent = `Round ${timerRoundNum} · ${Math.floor(timerGoalSeconds/60)}:00 goal`;
+  timerCardsEl.textContent = `${cardsThisRound} card${cardsThisRound===1?'':'s'} this round`;
+  timerClockEl.classList.toggle('warn', timerSecondsLeft <= 30);
+}
+function markCardViewed(){
+  cardsThisRound++;
+  renderTimer();
+}
+function tickTimer(){
+  timerSecondsLeft--;
+  if(timerSecondsLeft <= 0){
+    clearInterval(timerInterval);
+    timerRunning = false;
+    timerStartBtn.textContent = 'Start';
+    if('speechSynthesis' in window){
+      const u = new SpeechSynthesisUtterance('Round complete!');
+      speechSynthesis.speak(u);
+    }
+    alert(`⏰ Round ${timerRoundNum} complete! You viewed ${cardsThisRound} cards. Next round: ${Math.floor((timerGoalSeconds+180)/60)} minutes.`);
+    timerRoundNum++;
+    timerGoalSeconds += 180;
+    timerSecondsLeft = timerGoalSeconds;
+    cardsThisRound = 0;
+    renderTimer();
+    return;
+  }
+  renderTimer();
+}
+timerStartBtn.addEventListener('click', ()=>{
+  if(timerRunning){
+    clearInterval(timerInterval);
+    timerRunning = false;
+    timerStartBtn.textContent = 'Start';
+  } else {
+    timerRunning = true;
+    timerStartBtn.textContent = 'Pause';
+    timerInterval = setInterval(tickTimer, 1000);
+  }
+});
+timerResetBtn.addEventListener('click', ()=>{
+  clearInterval(timerInterval);
+  timerRunning = false;
+  timerStartBtn.textContent = 'Start';
+  timerRoundNum = 1;
+  timerGoalSeconds = 7*60;
+  timerSecondsLeft = timerGoalSeconds;
+  cardsThisRound = 0;
+  renderTimer();
+});
+renderTimer();
+
 function checkPasscode(){
   if(sessionStorage.getItem('editUnlocked') === 'true') return true;
   const entered = prompt("Enter the class passcode to add, edit, or delete:");
@@ -459,7 +550,7 @@ function rebuildDeckQueue(){
   let source = words;
   if(activeDeckFilter !== 'ALL') source = source.filter(w=>normDeck(w.deck)===activeDeckFilter);
   if(starOnly) source = source.filter(w=>w.starred);
-  deckQueue = [...source];
+  deckQueue = source.slice();
   current = 0;
   renderCard();
 }
@@ -553,16 +644,29 @@ document.getElementById('dirEngFirst').addEventListener('click', ()=>{
   document.getElementById('dirHebFirst').classList.remove('on');
   renderCard();
 });
-document.getElementById('prevBtn').addEventListener('click', ()=>{ current--; renderCard(); });
-document.getElementById('nextBtn').addEventListener('click', ()=>{ current++; renderCard(); });
+document.getElementById('prevBtn').addEventListener('click', ()=>{ current--; markCardViewed(); renderCard(); });
+document.getElementById('nextBtn').addEventListener('click', ()=>{ current++; markCardViewed(); renderCard(); });
 document.getElementById('flipBtn').addEventListener('click', ()=>{
   if(deckQueue.length===0) return;
   revealed = !revealed;
+  if(revealed) markCardViewed();
   renderReveal(deckQueue[current]);
 });
-document.getElementById('skipBtn').addEventListener('click', ()=>{ current++; renderCard(); });
+document.getElementById('skipBtn').addEventListener('click', ()=>{ current++; markCardViewed(); renderCard(); });
 document.getElementById('shuffleBtn').addEventListener('click', ()=>{
-  for(let i=deckQueue.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [deckQueue[i],deckQueue[j]]=[deckQueue[j],deckQueue[i]]; }
+  if(deckQueue.length < 2) return;
+  let arr = deckQueue.slice();
+  let shuffledEnough = false;
+  let attempts = 0;
+  while(!shuffledEnough && attempts < 5){
+    for(let i=arr.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]] = [arr[j],arr[i]];
+    }
+    shuffledEnough = arr.some((w,idx)=> w.id !== deckQueue[idx].id) || arr.length < 2;
+    attempts++;
+  }
+  deckQueue = arr;
   current = 0;
   renderCard();
 });
@@ -606,7 +710,7 @@ function attachSwipe(card){
   card.addEventListener('touchstart', e=>{ startX = e.touches[0].clientX; });
   card.addEventListener('touchend', e=>{
     const dx = e.changedTouches[0].clientX - startX;
-    if(Math.abs(dx) > 60){ if(dx < 0) current++; else current--; renderCard(); }
+    if(Math.abs(dx) > 60){ if(dx < 0) current++; else current--; markCardViewed(); renderCard(); }
   });
 }
 function getPrintWords(){
