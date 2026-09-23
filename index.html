@@ -25,8 +25,9 @@
   .direction-bar{display:flex;gap:8px;margin-bottom:14px;}
   .direction-bar button{flex:1;padding:10px 6px;border-radius:8px;border:1px solid #333;background:#181b22;color:var(--text);font-size:12px;font-weight:600;}
   .direction-bar button.on{background:var(--accent);color:#001522;}
-  .deck-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;}
+  .deck-bar{display:flex;gap:8px;margin-bottom:6px;align-items:center;}
   .deck-bar select{flex:1;}
+  .card-counter{text-align:center;font-size:13px;color:var(--muted);margin-bottom:12px;font-weight:600;}
   .card-wrap{position:relative;height:340px;touch-action:pan-y;}
   .card{position:absolute;inset:0;background:var(--card);border-radius:18px;padding:24px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4);}
   .front-word{font-size:52px;font-weight:700;line-height:1.2;}
@@ -111,6 +112,7 @@
 <div class="page active" id="page-practice">
   <div class="sync-banner sync-ok" id="syncBanner">Connecting…</div>
   <div class="deck-bar"><select id="deckFilter"></select></div>
+  <div class="card-counter" id="cardCounter">0/0</div>
   <div class="direction-bar">
     <button id="dirHebFirst" class="on">🇮🇱 Hebrew First</button>
     <button id="dirEngFirst">🇬🇧 English First</button>
@@ -220,7 +222,13 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const wordsCol = db.collection("words");
 const decksCol = db.collection("decks");
-const DEFAULT_DECK = "General";
+const DEFAULT_DECK = "ALL DECKS";
+const LEGACY_DECK = "General";
+function normDeck(d){
+  if(!d) return DEFAULT_DECK;
+  if(d === LEGACY_DECK) return DEFAULT_DECK;
+  return d;
+}
 let words = [];
 let decks = [DEFAULT_DECK];
 let deckQueue = [];
@@ -234,6 +242,7 @@ let direction = 'h2e';
 let activeDeckFilter = 'ALL';
 let editingWordId = null;
 const syncBanner = document.getElementById('syncBanner');
+const cardCounterEl = document.getElementById('cardCounter');
 function checkPasscode(){
   if(sessionStorage.getItem('editUnlocked') === 'true') return true;
   const entered = prompt("Enter the class passcode to add, edit, or delete:");
@@ -251,7 +260,10 @@ document.getElementById('inAddedBy').addEventListener('input', e=>{
   localStorage.setItem(NAME_KEY, e.target.value);
 });
 wordsCol.onSnapshot(snap=>{
-  words = snap.docs.map(d=>({ id:d.id, ...d.data() }));
+  words = snap.docs.map(d=>{
+    const data = d.data();
+    return { id:d.id, ...data, deck: normDeck(data.deck) };
+  });
   syncBanner.textContent = "✓ Synced — shared with everyone using this link";
   syncBanner.className = "sync-banner sync-ok";
   rebuildDeckQueue();
@@ -262,15 +274,16 @@ wordsCol.onSnapshot(snap=>{
   console.error(err);
 });
 decksCol.onSnapshot(snap=>{
-  const fetched = snap.docs.map(d=>d.data().name);
-  decks = [DEFAULT_DECK, ...fetched.filter(n=>n!==DEFAULT_DECK)];
+  const fetched = snap.docs.map(d=>d.data().name).filter(Boolean);
+  const cleaned = fetched.filter(n=>n!==DEFAULT_DECK && n!==LEGACY_DECK);
+  decks = [DEFAULT_DECK, ...cleaned];
   refreshDeckDropdowns();
   if(document.getElementById('page-decks').classList.contains('active')) renderDecks();
 });
 const CONSONANTS = {'א':'','ב':'v','ג':'g','ד':'d','ה':'h','ו':'v','ז':'z','ח':'ch','ט':'t','י':'y','כ':'kh','ך':'kh','ל':'l','מ':'m','ם':'m','נ':'n','ן':'n','ס':'s','ע':'','פ':'f','ף':'f','צ':'tz','ץ':'tz','ק':'k','ר':'r','ש':'sh','ת':'t'};
 const NIQQUD = {'\u05B0':'','\u05B1':'e','\u05B2':'a','\u05B3':'o','\u05B4':'i','\u05B5':'e','\u05B6':'e','\u05B7':'a','\u05B8':'a','\u05B9':'o','\u05BA':'o','\u05BB':'u','\u05BC':'','\u05C1':'','\u05C2':'','\u05C7':''};
 function transliterate(heb){ let out=""; for(const ch of heb){ if(CONSONANTS[ch]!==undefined) out+=CONSONANTS[ch]; else if(NIQQUD[ch]!==undefined) out+=NIQQUD[ch]; else if(ch===' ') out+=' '; } return out||""; }
-function stripNiqqud(str){ return str.replace(/[\u0591-\u05C7]/g,""); }
+function stripNiqqud(str){ return (str||"").replace(/[\u0591-\u05C7]/g,""); }
 async function translateText(text, from, to){
   if(!text.trim()) return "";
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`;
@@ -366,7 +379,7 @@ function refreshDeckDropdowns(){
   inDeckEl.innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
   document.getElementById('editDeck').innerHTML = decks.map(d=>`<option value="${d}">${d}</option>`).join('');
   const prevVal = deckFilterEl.value || 'ALL';
-  deckFilterEl.innerHTML = `<option value="ALL">General (All Cards)</option>` + decks.filter(d=>d!==DEFAULT_DECK).map(d=>`<option value="${d}">${d}</option>`).join('');
+  deckFilterEl.innerHTML = `<option value="ALL">ALL DECKS</option>` + decks.filter(d=>d!==DEFAULT_DECK).map(d=>`<option value="${d}">${d}</option>`).join('');
   deckFilterEl.value = (prevVal==='ALL' || decks.includes(prevVal)) ? prevVal : 'ALL';
   activeDeckFilter = deckFilterEl.value;
 }
@@ -375,7 +388,7 @@ document.getElementById('addDeckBtn').addEventListener('click', async ()=>{
   if(!checkPasscode()) return;
   const name = document.getElementById('newDeckName').value.trim();
   if(!name) return;
-  if(decks.includes(name)){ alert('That deck already exists.'); return; }
+  if(normDeck(name)===DEFAULT_DECK || decks.includes(name)){ alert('That deck already exists.'); return; }
   await decksCol.add({ name });
   document.getElementById('newDeckName').value = '';
 });
@@ -383,7 +396,7 @@ function renderDecks(){
   const list = document.getElementById('deckList');
   list.innerHTML = '';
   decks.forEach(d=>{
-    const count = words.filter(w=>w.deck===d).length;
+    const count = words.filter(w=>normDeck(w.deck)===d).length;
     const li = document.createElement('li');
     li.innerHTML = `<span>${d} <span style="color:var(--muted);font-size:12px;">(${count} word${count===1?'':'s'})</span></span>`;
     if(d !== DEFAULT_DECK){
@@ -392,7 +405,7 @@ function renderDecks(){
       del.addEventListener('click', async ()=>{
         if(!checkPasscode()) return;
         if(!confirm(`Delete deck "${d}"? Its words will move to "${DEFAULT_DECK}".`)) return;
-        const toMove = words.filter(w=>w.deck===d);
+        const toMove = words.filter(w=>normDeck(w.deck)===d);
         await Promise.all(toMove.map(w=> wordsCol.doc(w.id).update({ deck: DEFAULT_DECK })));
         const snap = await decksCol.where("name","==",d).get();
         await Promise.all(snap.docs.map(docu=> decksCol.doc(docu.id).delete()));
@@ -411,7 +424,7 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
     heb, eng,
     translit: document.getElementById('inTranslit').value.trim(),
     sentence: document.getElementById('inSentence').value.trim(),
-    deck: inDeckEl.value || DEFAULT_DECK,
+    deck: normDeck(inDeckEl.value) || DEFAULT_DECK,
     starred: false,
     addedBy: document.getElementById('inAddedBy').value.trim() || "Anonymous",
     createdAt: Date.now()
@@ -431,7 +444,7 @@ function renderManage(){
   if(words.length===0){ list.innerHTML = '<div class="empty">No words yet.</div>'; return; }
   words.forEach(w=>{
     const li = document.createElement('li');
-    li.innerHTML = `<span dir="rtl">${w.heb} — ${w.eng}<span class="meta" dir="ltr">Deck: ${w.deck} · Added by: ${w.addedBy||'Anonymous'}</span></span>`;
+    li.innerHTML = `<span dir="rtl">${w.heb} — ${w.eng}<span class="meta" dir="ltr">Deck: ${normDeck(w.deck)} · Added by: ${w.addedBy||'Anonymous'}</span></span>`;
     const del = document.createElement('button');
     del.textContent = 'Delete';
     del.addEventListener('click', async ()=>{
@@ -444,7 +457,7 @@ function renderManage(){
 }
 function rebuildDeckQueue(){
   let source = words;
-  if(activeDeckFilter !== 'ALL') source = source.filter(w=>w.deck===activeDeckFilter);
+  if(activeDeckFilter !== 'ALL') source = source.filter(w=>normDeck(w.deck)===activeDeckFilter);
   if(starOnly) source = source.filter(w=>w.starred);
   deckQueue = [...source];
   current = 0;
@@ -454,16 +467,25 @@ function displayHeb(heb){ return showNiqqud ? heb : stripNiqqud(heb); }
 function boldSentence(sentence, heb){
   if(!sentence) return "";
   const bare = stripNiqqud(heb).trim();
+  if(!bare) return showNiqqud ? sentence : stripNiqqud(sentence);
   const escaped = bare.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const re = new RegExp(escaped,"g");
   const shownSentence = showNiqqud ? sentence : stripNiqqud(sentence);
   return shownSentence.replace(re, m=>`<b>${m}</b>`);
+}
+function updateCounter(){
+  if(deckQueue.length===0){
+    cardCounterEl.textContent = `0/0`;
+  } else {
+    cardCounterEl.textContent = `${current+1}/${deckQueue.length}`;
+  }
 }
 function renderCard(){
   const wrap = document.getElementById('cardWrap');
   wrap.innerHTML = '';
   if(deckQueue.length===0){
     wrap.innerHTML = '<div class="empty">No words to show. Add some, pick a different deck, or turn off ★ Only.</div>';
+    updateCounter();
     return;
   }
   if(current>=deckQueue.length) current = 0;
@@ -483,14 +505,15 @@ function renderCard(){
   wrap.appendChild(card);
   attachSwipe(card);
   updateStarBtn(w);
+  updateCounter();
 }
 function renderReveal(w){
   const area = document.getElementById('revealArea');
   if(!revealed){ area.innerHTML=''; return; }
   if(direction === 'h2e'){
-    area.innerHTML = `<div class="big">${w.eng}</div><div class="translit">${w.translit}</div><button class="speak-btn" id="speakBtn">🔊 Hear it</button><div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>`;
+    area.innerHTML = `<div class="big">${w.eng}</div><div class="translit">${w.translit||''}</div><button class="speak-btn" id="speakBtn">🔊 Hear it</button><div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>`;
   } else {
-    area.innerHTML = `<div class="big heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div><div class="translit">${w.translit}</div>${w.sentence ? `<div class="backSentence">${boldSentence(w.sentence, w.heb)}</div>` : ''}<button class="speak-btn" id="speakBtn">🔊 Hear it</button><div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>`;
+    area.innerHTML = `<div class="big heb ${scriptMode?'script':''}">${displayHeb(w.heb)}</div><div class="translit">${w.translit||''}</div>${w.sentence ? `<div class="backSentence">${boldSentence(w.sentence, w.heb)}</div>` : ''}<button class="speak-btn" id="speakBtn">🔊 Hear it</button><div class="addedBy">Added by ${w.addedBy||'Anonymous'}</div>`;
   }
   document.getElementById('speakBtn').addEventListener('click', e=>{ e.stopPropagation(); speak(w.heb); });
 }
@@ -556,7 +579,7 @@ document.getElementById('editCardBtn').addEventListener('click', ()=>{
   document.getElementById('editHeb').value = w.heb || '';
   document.getElementById('editEng').value = w.eng || '';
   document.getElementById('editTranslit').value = w.translit || '';
-  document.getElementById('editDeck').value = w.deck || DEFAULT_DECK;
+  document.getElementById('editDeck').value = normDeck(w.deck) || DEFAULT_DECK;
   document.getElementById('editSentence').value = w.sentence || '';
   document.getElementById('editModal').classList.add('show');
 });
@@ -572,7 +595,7 @@ document.getElementById('editSaveBtn').addEventListener('click', async ()=>{
   await wordsCol.doc(editingWordId).update({
     heb, eng,
     translit: document.getElementById('editTranslit').value.trim(),
-    deck: document.getElementById('editDeck').value,
+    deck: normDeck(document.getElementById('editDeck').value),
     sentence: document.getElementById('editSentence').value.trim()
   });
   document.getElementById('editModal').classList.remove('show');
@@ -588,7 +611,7 @@ function attachSwipe(card){
 }
 function getPrintWords(){
   let source = words;
-  if(activeDeckFilter !== 'ALL') source = source.filter(w=>w.deck===activeDeckFilter);
+  if(activeDeckFilter !== 'ALL') source = source.filter(w=>normDeck(w.deck)===activeDeckFilter);
   if(starOnly) source = source.filter(w=>w.starred);
   return source;
 }
@@ -596,7 +619,7 @@ function buildPrint(){
   const src = getPrintWords();
   const area = document.getElementById('printArea');
   if(src.length===0){ alert("No cards to print in this deck/filter."); area.innerHTML=''; return; }
-  let html = `<div class="print-instructions">Print double-sided • Flip on long edge • ${src.length} cards • Deck: ${activeDeckFilter==='ALL'?'General (All Cards)':activeDeckFilter}</div>`;
+  let html = `<div class="print-instructions">Print double-sided • Flip on long edge • ${src.length} cards • Deck: ${activeDeckFilter==='ALL'?'ALL DECKS':activeDeckFilter}</div>`;
   const PER_PAGE = 8;
   for(let i=0;i<src.length;i+=PER_PAGE){
     const chunk = src.slice(i,i+PER_PAGE);
