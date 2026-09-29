@@ -110,14 +110,14 @@
 </style>
 </head>
 <body>
-
+ 
 <header>
   <button data-page="practice" class="active">Practice</button>
   <button data-page="add">Add Word</button>
   <button data-page="decks">Decks</button>
   <button data-page="manage">My Words</button>
 </header>
-
+ 
 <div class="page active" id="page-practice">
   <div class="sync-banner sync-ok" id="syncBanner">Connecting…</div>
   <div class="deck-bar"><select id="deckFilter"></select></div>
@@ -157,7 +157,7 @@
   </div>
   <div class="hint">Tap the card, or use Flip/Back/Next · swipe also works</div>
 </div>
-
+ 
 <div class="page" id="page-add">
   <label>Your name (shown as who added the word — optional)</label>
   <input id="inAddedBy" placeholder="e.g. Jordan">
@@ -191,7 +191,7 @@
   <div class="status" id="voiceSentenceStatus"></div>
   <button class="primary" id="saveBtn">Save Word</button>
 </div>
-
+ 
 <div class="page" id="page-decks">
   <label>Create a new deck</label>
   <div class="deck-manage">
@@ -200,13 +200,13 @@
   </div>
   <ul class="deck-list" id="deckList"></ul>
 </div>
-
+ 
 <div class="page" id="page-manage">
   <ul class="word-list" id="wordList"></ul>
 </div>
-
+ 
 <div id="printArea"></div>
-
+ 
 <div class="modal-overlay" id="editModal">
   <div class="modal-box">
     <h3>Edit Word</h3>
@@ -226,7 +226,7 @@
     </div>
   </div>
 </div>
-
+ 
 <script>
 const EDIT_PASSCODE = "613";
 const firebaseConfig = {
@@ -263,7 +263,7 @@ let activeDeckFilter = 'ALL';
 let editingWordId = null;
 const syncBanner = document.getElementById('syncBanner');
 const cardCounterEl = document.getElementById('cardCounter');
-
+ 
 // ---- Practice Timer + Cards This Round ----
 let timerRoundNum = 1;
 let timerGoalSeconds = 7*60;
@@ -333,7 +333,7 @@ timerResetBtn.addEventListener('click', ()=>{
   renderTimer();
 });
 renderTimer();
-
+ 
 function checkPasscode(){
   if(sessionStorage.getItem('editUnlocked') === 'true') return true;
   const entered = prompt("Enter the class passcode to add, edit, or delete:");
